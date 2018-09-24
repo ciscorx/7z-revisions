@@ -1707,8 +1707,8 @@ previous."
     (setq 7zr-view-highlighted_buffer (current-buffer))
 
 
-    (local-set-key (kbd "d") '7zr-view_jump_to_next_difference)
-    (local-set-key (kbd "e") '7zr-view_jump_to_previous_difference)
+   ; (local-set-key (kbd "d") '7zr-view_jump_to_next_difference)   ; debug
+   ; (local-set-key (kbd "e") '7zr-view_jump_to_previous_difference)
     )
   )
 
