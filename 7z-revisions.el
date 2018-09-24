@@ -83,9 +83,12 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
     (define-key map [menu-bar 7zr-summary view-revision]
       '(menu-item "View Revision" 7zr-summary-view-revision
                   :help "View the Revision at Point"))
+   (define-key map [menu-bar 7zr-summary goto-sha]
+      '(menu-item "Goto sha1 hashvalue" 7zr-summary-goto-sha1
+                  :help "Find revision pertaining to given sha1sum hash value."))
    (define-key map [menu-bar 7zr-summary goto-date]
       '(menu-item "Goto Date" 7zr-summary-goto-date
-                  :help "Goto a particular date or nearest to at any rate"))
+                  :help "Goto a particular date or nearest to at any rate."))
     (define-key map [menu-bar 7zr-summary sep] menu-bar-separator)
     (define-key map [menu-bar 7zr-summary consolidate_region]
       '(menu-item "Consolidate Region" 7zr-summary-consolidate-region
@@ -361,7 +364,41 @@ where it lies."
     )    ; let
   )
 
-;(7zr-summary-goto-date)
+
+(defun 7zr-summary-goto-sha1 ()
+  (interactive)
+  (let (inputted_sha1 inputted_timetuple sha1point begin end point_saved revision)
+    (setq inputted_sha1 (read-string "Enter sha1sum hashvalue:"))
+
+    (save-window-excursion
+      (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-prepend-to-hash-file 7zr-current-original-version))
+      (if (string= "" (setq revision (string-trim-final-newline (shell-command-to-string (concat "grep " 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-current-original-version " -e " inputted_sha1  " | awk '{print $2}'")))))
+	  (message "Hashvalue not found in the hashtable")
+	(setq revision (replace-regexp-in-string "\"" "" revision))
+	(save-excursion
+	  (goto-char (point-min))
+	  (forward-line 1)
+	  (setq begin (point))
+	  (goto-char (point-max))
+	  (beginning-of-line)
+	  (forward-line -1)
+	  (setq end (point))
+	  )
+	(setq point_saved (point))
+	(narrow-to-region begin end)
+	(goto-char (point-min))
+	(when (not (re-search-forward revision nil t))
+	  (message (concat "Revision " revision " not found!"))
+	  (goto-char point_saved)
+	  )
+	(widen)
+
+	)
+      )
+    )
+  )
+
+
 (defun 7zr-summary-goto-date ()
   (interactive)
   (let (inputted_date inputted_timetuple datepoint)
@@ -369,13 +406,9 @@ where it lies."
     (when (not (string-match-p ":" inputted_date))
       (setq inputted_date (concat inputted_date " 0:00"))
       )
- ;     (unwind-protect
 	    (condition-case ex
 		(setq inputted_timetuple (apply #'encode-time (parse-time-string inputted_date)))
         ('error (message (format " Invalid date! " ))))
-;	(message "error")
-;	t
-;	)
       (when inputted_timetuple
 	(setq datepoint (7zr-summary-find-encoded-datetime inputted_timetuple nil))
 	(if (= datepoint -1)
@@ -626,7 +659,8 @@ what format will be outputted."
 	   (when 7zr-view_highlightp
 	     (7zr-view-highlight-changes nil t)
 	     )
-	   (7zr-view-local-set-keys)
+;	   (7zr-view-local-set-keys)
+	   (7zr-view-mode)
 	   (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" 7zr-original-version))	
 	   ))
 
@@ -643,16 +677,17 @@ what format will be outputted."
 	   (find-file-read-only (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
 	   (setq 7zr-pointer-lastviewed (number-to-string 7zr-patch-number))
 	 ;  (7zr-parse-standard-diff-type t)
-	   (7zr-view-local-set-keys)
+;	   (7zr-view-local-set-keys)
+	   (7zr-view-mode)
 	  ;(7zr-summary-reconst-last-del)
 	   (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
 
-;	
-;; 	  (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-prepend-to-latest-revision 7zr-original-version))
-;; 	  (setq 7zr-revisions_lastbuffer (current-buffer))
-;; 	  (find-file-read-only (concat 7zr-temp-directory  7zr-prepend-to-latest-revision 7zr-original-version))
-;; 	  (7zr-view-local-set-keys)
-;; ;	  (7z-revisions-view-mode)
+
+
+
+
+
+
 	   ))
 	  
       ((looking-at (number-to-string 7zr-patch-number))
@@ -756,6 +791,42 @@ what format will be outputted."
 
 
 
+(defvar 7zr-view-mode-map 
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "d") '7zr-view_jump_to_next_difference)   
+    (define-key map (kbd "e") '7zr-view_jump_to_previous_difference)
+    (define-key map (kbd "p") '7zr-view_previous_page)
+    (define-key map (kbd "n") '7zr-view_next_page)
+    (define-key map (kbd "q") '7zr-view-quit)
+    (define-key map [menu-bar 7zr-view]
+      (cons "7zr-view" (make-sparse-keymap "7zr-view")))
+    (define-key map [menu-bar 7zr-view quit]
+      '(menu-item "Quit View" 7zr-view-quit
+                  :help "Quit viewing this revision"))
+    (define-key map [menu-bar 7zr-view jump_next]
+      '(menu-item "Jump to Difference" 7zr-view_jump_to_next_difference
+                  :help "Jump to the next highlighted difference in current revision"))
+    (define-key map [menu-bar 7zr-view jump_prev]
+      '(menu-item "Jump to previous Difference" 7zr-view_jump_to_next_difference
+                  :help "Jump to the previous highlighted difference in current revision"))
+    (define-key map [menu-bar 7zr-view sep] menu-bar-separator)
+    (define-key map [menu-bar 7zr-view next_page]
+      '(menu-item "View Next Revision" 7zr-view_next_page
+                  :help "View next revision in sequence."))
+    (define-key map [menu-bar 7zr-view prev_page]
+      '(menu-item "View Previous Revision" 7zr-view_previous_page
+                  :help "View next revision in sequence."))
+    map)
+  "Keymap while 7zr-view-mode is active.")
+
+;;;###autoload
+(define-minor-mode 7zr-view-mode
+  "A temporary minor mode to be activated only specific to a buffer."
+  nil
+  :lighter " 7zrv"
+  7zr-view-mode-map)
+
+(provide '7zr-view-mode)
 
 
 
@@ -1089,6 +1160,20 @@ See help of `format-time-string' for possible replacements")
 	  (set-buffer 7zr-revisions_tmpbuffer)
 	  (7zr-revisions-load-hashtable)
 	  (switch-to-buffer 7zr-revisions_tmpbuffer)
+	  (goto-char (point-min))
+	  (when (and 
+		 (re-search-forward 7zr-original-version nil t)
+		 (not (string= (format-mode-line "%l") "1")))
+	    (beginning-of-line)
+	    (let ((tmpbegin (point)) tmpend tmpsubstring)
+	      (forward-line 1)
+	      (setq tmpend (point))
+	      (setq tmpsubstring (buffer-substring-no-properties tmpbegin tmpend))
+	      (delete-region tmpbegin tmpend)
+	      (goto-char (point-min))
+	      (insert tmpsubstring)
+	      )
+	    )
 	  (goto-char (point-max))
 	  (setq 7zr-revisions_tmpbuffer_lines (line-number-at-pos))
 	  (insert 7zr-latest-revision)
@@ -1389,7 +1474,6 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
       (save-window-excursion
 	(7zr-reconstruct-get-max-patch-string)  ; also gets 7zr-revisions_tmpbuffer_lines 
 
-
       ;; First check if there is a rev-pointer, if there is and its
       ;;  closer to rev than the max ancestor or max progeny then
       ;;  construct rev from last used rev-pointer and make that one
@@ -1398,8 +1482,6 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
       ;;  construct rev starting from latest ancester if target is
       ;;  above the mid line or 7zr-latest- if target lies below the
       ;;  mid line, and make that the latest rev-pointer
-
-
 
 	; if there is a rev still in the temp directory lets verify to see if its valid
 	(when (not (string= 7zr-pointer-lastviewed ""))
@@ -1427,9 +1509,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 		      (progn   ; we will walk upwards
 			(setq 7zr-reconstruct-direction -1)
 			(setq 7zr-reconstruct-dtag " -R -t ")
-		    
-			
-
+		    			
 			)	         
 		    (setq 7zr-valid-rev-in-tempp nil)
 		    )
@@ -1449,14 +1529,9 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
     ; if no last rev in temp or invalid then create last rev from original or latest
 
 	(if (not 7zr-valid-rev-in-tempp)
-;    (if (string= 7zr-pointer-lastviewed "")
-;    (if t   ; DEBUG
 	    (if (< (string-to-number (format-mode-line "%l")) (/ 7zr-revisions_tmpbuffer_lines 2))
-;	(if t ; DEBUG
 		(progn           ; start at the top and walk downwards
 		  (goto-char (point-min))
-;	      (looking-at "\\([0-9]+\.?[0-9]*\\)")
-;	      (setq 7zr-pointer-lastviewed (match-string-no-properties 0))
 		  (setq 7zr-reconstruct-direction 1)
 		  (setq 7zr-reconstruct-dtag " ")
 		  (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-original-version))  
@@ -1601,15 +1676,14 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
     (find-file-read-only (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
     (set (make-local-variable '7zr-active-document) 7zr-buffer)
     
-;    (7z-revisions-view-mode)
-
 ;    (setf (buffer-local-value '7zr-archive-file-name-directory 7zr-revisions_lastbuffer) 'some-val)
 ;    (make-local-variable '7zr-archive-file-name-directory)
  ;   (setq 7zr-archive-file-name-directory (buffer-local-value '7zr-archive-file-name-directory 7zr-revisions_lastbuffer))
     (when 7zr-view_highlightp
       (7zr-view-highlight-changes t t)
       )
-    (7zr-view-local-set-keys)
+    (7zr-view-mode)
+;    (7zr-view-local-set-keys)
     )
 )
 
@@ -1706,7 +1780,7 @@ previous."
     (setq 7zr-diff-queue_position 0)
     (setq 7zr-view-highlighted_buffer (current-buffer))
 
-
+   ; (use-local-map (copy-keymap (current-local-map)))
    ; (local-set-key (kbd "d") '7zr-view_jump_to_next_difference)   ; debug
    ; (local-set-key (kbd "e") '7zr-view_jump_to_previous_difference)
     )
@@ -2168,12 +2242,14 @@ highlighting changes when reviewing revisions"
 	 (goto-char (point-min))
 	 (setq line_pos_current (aref line_pos_v (car x)))
 	 (setq column_pos_current (car (aref column_pos_v (car x))))
-	 
-	 (forward-line (- line_pos_current 1))
-	 (forward-char (- column_pos_current 0))
-	 (setq begin (point))
-	 (push (point) beginning_point_list)
-	 (setq 7zr-map-difference_line_pos_last line_pos_current)
+	 ;; (when (and 
+	 ;; 	(> line_pos_current  0)
+	 ;; 	(>= column_pos_current 0))
+	   (forward-line (- line_pos_current 1))
+	   (forward-char (- column_pos_current 0))
+	   (setq begin (point))
+	   (push (point) beginning_point_list)
+	   (setq 7zr-map-difference_line_pos_last line_pos_current)
 	 
 	 (setq line_pos_current (aref line_pos_v (car (cdr x))))
 	 (setq column_pos_current (car (cdr (aref column_pos_v (car (cdr x))))))
@@ -2188,14 +2264,17 @@ highlighting changes when reviewing revisions"
 	     (put-text-property begin end 'font-lock-face '(:background "red"))
 	     )
 	   )
+	 
 
    ;   (add-text-properties begin end    '(comment t face highlight))
-	 (list begin end))	 difference_ranges)
+	 (list begin end)
+;	 )
+	 ) difference_ranges)
      
       (toggle-read-only 1)
       (set-buffer-modified-p nil) 
       beginning_point_list
-
+      
       ) ; let*
     ) ; save-excursion
 ) ; 7zr-map-difference-ranges-to-point-ranges
