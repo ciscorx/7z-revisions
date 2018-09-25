@@ -14,18 +14,29 @@ Emacs app that saves and reviews past revisions of a single file via a .7z archi
  interactively to view or consolidate past revisions in the
  archive.
  
- When in 7z-revisions-mode, Return = view revision at point, q =
- quit, c = consolidate region, g = goto date.  While viewing
- individual past revisions, q = quit, n = next, p = previous.
- When highlight changes is enabled then d = jump to next change, e
- = jump to previous change
+ A list of past revisions can be brought up by interactively calling
+ the 7z-revisions function, enabling the following key bindings:
+ Enter = view revision at point, 
+ q = quit, 
+ c = consolidate region, 
+ g = goto date.  
+ 
+ While viewing individual past revisions:
+ q = quit, 
+ n = next, 
+ p = previous.  
+
+ When highlight changes is enabled:
+ d = jump to next difference change, 
+ e = jump to previous change
 
  There are also some functions in the menu which provide for
  consoldating the current days worth of changes, or last hour
  worth of changes, etc.
 
- Also, sha1sum hash values for each revision are saved in the
- hashtable stored in the archive.
+ Also, if you know part of a sha1hash value and dont know the
+ revision, theres a menu option to goto the revision pertaining to the
+ hash.
 
  Required features:
    hl-line+.el
