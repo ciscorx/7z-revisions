@@ -1,5 +1,5 @@
 # 7z-revisions
-Emacs app that saves and reviews past revisions of a single file via a .7z archive, when git is over-kill.
+Emacs app that saves and reviews past revisions of a single file via a .7z archive, useful when git is considered over-kill.
 
  Commentary:
 
