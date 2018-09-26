@@ -2023,7 +2023,7 @@ Used by 7zr-longest-common-word-subsequence-difference-ranges"
 
 
 (defun 7zr-longest-common-word-subsequence-difference-ranges (v1 v2 ancestorp )
-"Returns a list of ranges of consecutive word numbers that appear in v2 but do not appear in v1, given that ancestorp is true.  Otherwise returns range of words appearing in v2 and not in v1.  This function is only used for highlighting changes when reviewing revisions"
+"Returns a list of ranges of consecutive word numbers that appear in v2 but do not appear in v1, given that ancestorp is true.  Otherwise returns range of words appearing in v2 and not in v1.  This function is only used for highlighting changes when reviewing revisions.  ANCESTORP means that we are looking at the difference between the current revision and its nearest respective ancestor."
  (let* ( 
 	 (l1 (length v1))
 	 (l2 (length v2))
@@ -2186,31 +2186,35 @@ Used by 7zr-longest-common-word-subsequence-difference-ranges"
 	  (decf q1)
 	 )    
 	(while (and (< q1 q2) ancestorp)	    
-	  (push (aref v1 (+ (1- q2) p2_pre)) differences)
+	  (push (aref v2 (+ (1- q2) p2_pre)) differences)
 	  (push (+ (1- q2) p2_pre) differences_wn)
 	  (decf q2)
 	 )    
 
 
     ; convert word difference sequences to a list of ranges of consecutive numbers
-	(setq difference_ranges '())
-	(setq differences_wn_v (vconcat differences_wn))
-	(setq range_car  (aref differences_wn_v 0))
-	(setq last_word_num (1- range_car))
-	(dotimes (i (length differences_wn_v) t)
-	  (when (not (eql (setq current_word_num (aref differences_wn_v i)) (1+ last_word_num)))
-	    (push (list range_car last_word_num) difference_ranges)
-	    (setq range_car current_word_num)
-	    )
-	  (setq last_word_num current_word_num)
+
+	(if differences_wn
+	    (progn
+	      (setq difference_ranges '())
+	      (setq differences_wn_v (vconcat differences_wn))
+	      (setq range_car  (aref differences_wn_v 0))
+	      (setq last_word_num (1- range_car))
+	      (dotimes (i (length differences_wn_v) t)
+		(when (not (eql (setq current_word_num (aref differences_wn_v i)) (1+ last_word_num)))
+		  (push (list range_car last_word_num) difference_ranges)
+		  (setq range_car current_word_num)
+		  )
+		(setq last_word_num current_word_num)
 	  
-	  )
-	(push (list range_car current_word_num) difference_ranges)
+		)
+	      (push (list range_car current_word_num) difference_ranges)
 	
 ;	(pp differences)
 ;	(pp difference_ranges)
-	difference_ranges
-
+	      difference_ranges
+	      ) 
+	  nil ) ; if no differences
 	) ; if error
       ) ; if done early
 
