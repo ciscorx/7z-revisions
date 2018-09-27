@@ -13,19 +13,19 @@
   ;; buffer to a 7-zip archive of the same name, whenever a
   ;; save-buffer command is issued.  A timestamp in the form of
   ;; MMDDYY-HHMMSS is appended to the archived file.  If the .7z
-  ;; archive file already exists then it reconstructs the latest
-  ;; revision from the diff patches in the archive, creates a diff
-  ;; against that reconstruction and then appends it to the archive.
+  ;; archive file already exists then it incrementally saves the
+  ;; latest revision by adding a new patch to the archive.
   ;; Additionally, the function 7z-revisions can be called
   ;; interactively to view or consolidate past revisions in the
   ;; archive.
   ;; 
   ;; When 7z-revisions is called, the following key bindings take
   ;;   effect: Return = view the revision at point, q = quit, c =
-  ;;   consolidate region, g = goto date.  
-  ;; While viewing a revision, q = quit, n = next, p = previous.
+  ;;   consolidate region, g = goto date, h = toggle highlight
+  ;;   differences
+  ;; While viewing a revision: q = quit, n = next, p = previous.
   ;;   Also, when highlight changes is enabled, d = jump to next
-  ;;   change, e = jump to previous change
+  ;;   difference/change, e = jump to previous change
   ;;
   ;; There are also some functions in the menu which provide for
   ;; consoldating the current days worth of changes, or last hour
@@ -48,10 +48,11 @@
   ;; feature)
   ;; - There's no way to add revision notes.
   ;; - buffer local variables arent working properly enough to allow
-  ;;     for two archives to be opened at once.  e.g. It appears that
-  ;;     elisp has trouble with using a buffer local variable to store
-  ;;     a vector; it only seems to store the first element.  However,
-  ;;     elisp seems to have no problem with buffer local lists.  
+  ;;     for two archives to be opened at once.  More precisely, it
+  ;;     appears that elisp has trouble with using a buffer local
+  ;;     variable to store a vector; it only seems to store the first
+  ;;     element.  However, elisp seems to have no problem with buffer
+  ;;     local lists.
   ;; 
   ;;  This program was written using emacs 23.3.1 on ubuntu 12.04.
 
@@ -76,6 +77,8 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
     (define-key map (kbd "q") '7zr-summary-quit)
     (define-key map (kbd "g") '7zr-summary-goto-date)
     (define-key map (kbd "c") '7zr-summary-consolidate-region)
+    (define-key map (kbd "h") '7zr-view-toggle-highlight-changes)
+
 ;    (define-key map (kbd "r") '7zr-reconstruct-sl)
     (define-key map [menu-bar 7zr-summary]
       (cons "7zr-summary" (make-sparse-keymap "7zr-summary")))
@@ -555,10 +558,18 @@ the patch files to be deleted in the region."
 
     
 (defun 7zr-view-toggle-highlight-changes ()
+" When a revision is being reviewed highlight any changes between
+the revision and its nearest ancestor and nearest progeny.  Also
+allow for jumping to the next or previous change via the d key or
+e key, respectively"
   (interactive)
   (if 7zr-view_highlightp
-      (setq 7zr-view_highlightp nil)
+      (progn
+	(setq 7zr-view_highlightp nil)
+	(message "Changes between revisions will be highlighted.")
+	)
     (setq 7zr-view_highlightp t)
+    (message "Not highlighting changes between revisions anymore.")
     )
   )
 
@@ -1190,6 +1201,7 @@ See help of `format-time-string' for possible replacements")
 	  (7zr-summary-mode)
 	  (make-local-variable 'global-hl-line-mode)
 	  (toggle-read-only 1)
+	  (set-buffer-modified-p nil)
 	  (hl-line-mode 1)
 	  (kill-buffer 7zr-revisions_with-temp-buffer)
 	  (let* ((#1=#:v 7zr-revisions_tmpbuffer))
@@ -1207,6 +1219,8 @@ See help of `format-time-string' for possible replacements")
 
 
 (defun 7zr-summary-sort-1 ()
+"sorts 1st column numeric but excludes the very first row
+and very last row in the sorting."
   (interactive)
   (let (begin end saved-point-here )
     (setq saved-point-here (point))
