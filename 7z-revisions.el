@@ -20,18 +20,19 @@
   ;; interactively to view or consolidate past revisions in the
   ;; archive.
   ;; 
-  ;; When in 7z-revisions-mode, Return = view revision at point, q =
-  ;; quit, c = consolidate region, g = goto date.  While viewing
-  ;; individual past revisions, q = quit, n = next, p = previous.
-  ;; When highlight changes is enabled then d = jump to next change, e
-  ;; = jump to previous change
+  ;; When 7z-revisions is called, the following key bindings take
+  ;;   effect: Return = view the revision at point, q = quit, c =
+  ;;   consolidate region, g = goto date.  
+  ;; While viewing a revision, q = quit, n = next, p = previous.
+  ;;   Also, when highlight changes is enabled, d = jump to next
+  ;;   change, e = jump to previous change
   ;;
   ;; There are also some functions in the menu which provide for
   ;; consoldating the current days worth of changes, or last hour
   ;; worth of changes, etc.
   ;;
   ;; Also, sha1sum hash values for each revision are saved in the
-  ;; hashtable stored in the archive.
+  ;; hashtable stored in the archive and can be search from the menu.
 
   ;; Required features:
   ;;   hl-line+.el
@@ -45,7 +46,7 @@
   ;; real number, e.g. "1.0".  
   ;; - Each archive can only track one file.  (let's call this a
   ;; feature)
-  ;; - There's no way to add commit or revision notes.
+  ;; - There's no way to add revision notes.
   ;; - buffer local variables arent working properly enough to allow
   ;;     for two archives to be opened at once.  e.g. It appears that
   ;;     elisp has trouble with using a buffer local variable to store
@@ -152,48 +153,6 @@ This is how `toggle-7zr-summary-mode-auto-fill' knows which buffers to operate o
 (defun 7zr-trim-r (str)
   (replace-regexp-in-string " +$"  "" str) )
 
-
-(defun 7zr-view_jump_to_next_difference ()
-  (interactive)
-
-  (setq 7zr-view_jump_current_buffer (current-buffer))
- ; (setq diff_queue_position 7zr-diff-queue_position)
-;  (setq diff_queue_position (buffer-local-value '7zr-diff-queue_position 7zr-view_jump_current_buffer))
-  (setq diff_queue_length (buffer-local-value '7zr-diff-queue_length 7zr-view_jump_current_buffer))
-  (setq 7zr-view_jump_diff_queue (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer))
-  (setq 7zr-view_jump_diff_queuev (vconcat 7zr-view_jump_diff_queue))
-    (when (and 
-	   (<= (+ 7zr-diff-queue_position 1) diff_queue_length)
-	   (> diff_queue_length 0))
-      (incf 7zr-diff-queue_position)
-;      (goto-char (aref (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer) (1- 7zr-diff-queue_position)))
-;      (goto-char (aref 7zr-diff-queue (1- 7zr-diff-queue_position)))
-      (goto-char (aref 7zr-view_jump_diff_queuev (1- 7zr-diff-queue_position)))
-      )
-    )
-  
-
-
-(defun 7zr-view_jump_to_previous_difference ()
-  (interactive)
-  
-  (setq 7zr-view_jump_current_buffer (current-buffer))
- ; (setq diff_queue_position 7zr-diff-queue_position)
-;  (setq diff_queue_position (buffer-local-value '7zr-diff-queue_position 7zr-view_jump_current_buffer))
-  (setq diff_queue_length (buffer-local-value '7zr-diff-queue_length 7zr-view_jump_current_buffer))
-  (setq 7zr-view_jump_diff_queue (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer))
-  (setq 7zr-view_jump_diff_queuev (vconcat 7zr-view_jump_diff_queue))
-    (when (and 
-	   (> (- 7zr-diff-queue_position 1) 0)
-	   (> diff_queue_length 0))
-      (decf 7zr-diff-queue_position)
-;      (goto-char (aref (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer) (1- 7zr-diff-queue_position)))
-;      (goto-char (aref 7zr-diff-queue (1- 7zr-diff-queue_position)))
-      (goto-char (aref 7zr-view_jump_diff_queuev (1- 7zr-diff-queue_position)))
-      )
-    )
-  
-  
 
  
 
@@ -689,7 +648,7 @@ what format will be outputted."
 
 
 	   ))
-	  
+	; viewing last revision
       ((looking-at (number-to-string 7zr-patch-number))
        (progn
 	 (save-window-excursion
@@ -704,11 +663,10 @@ what format will be outputted."
 ;	   (7zr-parse-standard-diff-type t)
 	   (7zr-view-highlight-changes t nil)
 	   )
-	 (7zr-view-local-set-keys)
-	   
+;	 (7zr-view-local-set-keys)
+	 (7zr-view-mode)
 	   ; (7zr-summary-reconst-last-del)
 	 (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
-;	  (7z-revisions-view-mode)	    
 	 ))
 
       	((looking-at "\\([0-9]+\.?[0-9]*\\)")
@@ -723,7 +681,7 @@ what format will be outputted."
 
 		    
 (defun 7zr-view-local-set-keys ()
-  " To inspect the change, type C-h b   ..or..  M-x describe-bindings "
+  "DEFUNCT To inspect the change, type C-h b   ..or..  M-x describe-bindings "
   (interactive)
   (if (not (eql major-mode 'fundamental-mode))
       (progn
@@ -747,6 +705,59 @@ what format will be outputted."
   )
 (kill-buffer)
 )
+
+
+; (provide '7zr-summary-mode)
+
+;;; 7zr-summary-mode.el ends  -----------------------------------
+
+
+;;; 7zr-view-mode begins ----------------------------------------
+
+
+(defun 7zr-view_jump_to_next_difference ()
+  (interactive)
+  (setq 7zr-view_jump_current_buffer (current-buffer))
+  (when (setq diff_queue_length (buffer-local-value '7zr-diff-queue_length 7zr-view_jump_current_buffer))  
+
+
+ ; (setq diff_queue_position 7zr-diff-queue_position)
+;  (setq diff_queue_position (buffer-local-value '7zr-diff-queue_position 7zr-view_jump_current_buffer))
+
+    (setq 7zr-view_jump_diff_queue (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer))
+    (setq 7zr-view_jump_diff_queuev (vconcat 7zr-view_jump_diff_queue))
+    (when (and 
+	   (<= (+ 7zr-diff-queue_position 1) diff_queue_length)
+	   (> diff_queue_length 0))
+      (incf 7zr-diff-queue_position)
+;      (goto-char (aref (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer) (1- 7zr-diff-queue_position)))
+;      (goto-char (aref 7zr-diff-queue (1- 7zr-diff-queue_position)))
+      (goto-char (aref 7zr-view_jump_diff_queuev (1- 7zr-diff-queue_position)))
+      )
+    )
+  )
+
+
+(defun 7zr-view_jump_to_previous_difference ()
+  (interactive)
+  
+  (setq 7zr-view_jump_current_buffer (current-buffer))
+ ; (setq diff_queue_position 7zr-diff-queue_position)
+;  (setq diff_queue_position (buffer-local-value '7zr-diff-queue_position 7zr-view_jump_current_buffer))
+  (when (setq diff_queue_length (buffer-local-value '7zr-diff-queue_length 7zr-view_jump_current_buffer))
+    (setq 7zr-view_jump_diff_queue (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer))
+    (setq 7zr-view_jump_diff_queuev (vconcat 7zr-view_jump_diff_queue))
+    (when (and 
+	   (> (- 7zr-diff-queue_position 1) 0)
+	   (> diff_queue_length 0))
+      (decf 7zr-diff-queue_position)
+;      (goto-char (aref (buffer-local-value '7zr-diff-queue 7zr-view_jump_current_buffer) (1- 7zr-diff-queue_position)))
+;      (goto-char (aref 7zr-diff-queue (1- 7zr-diff-queue_position)))
+      (goto-char (aref 7zr-view_jump_diff_queuev (1- 7zr-diff-queue_position)))
+      )
+    )
+  )
+  
 
 (defun 7zr-view-quit ()
 (interactive)
@@ -780,15 +791,6 @@ what format will be outputted."
       (goto-char 7zr-view-last-pos)
     )
   )
-
-
-
-  
-
-; (provide '7zr-summary-mode)
-
-;;; 7zr-summary-mode.el ends here --------------------------------
-
 
 
 (defvar 7zr-view-mode-map 
@@ -828,9 +830,9 @@ what format will be outputted."
 
 (provide '7zr-view-mode)
 
+;;;;;; 7z-view-mode ends --------------------------------------------
 
-
-;;;;;; 7z-revisions.el begins here ----------------------------------
+;;;;;; 7z-revisions.el begins ---- ----------------------------------
 
 (require 'hl-line+)
 (setq debug-on-error t)
@@ -898,6 +900,7 @@ See help of `format-time-string' for possible replacements")
 (make-variable-buffer-local '7zr-active-document_patch_number)
 
 ;; GLOBAL VARIABLES
+(setq 7zr-archive-extension ".7z")
 (setq 7zr-diff-command "diff -Na")
 (setq 7zr-patch-command "patch -p0")
 (setq 7zr-temp-directory "/tmp/")
@@ -946,7 +949,7 @@ See help of `format-time-string' for possible replacements")
 (setq 7zr-buffer (buffer-name (current-buffer)))
 (setq 7zr-buffer-filename-without-extension (sans-extension 7zr-buffer))
 (setq 7zr-buffer-filename (buffer-name (current-buffer)))
-(setq 7zr-archive-name (concat 7zr-buffer-filename ".7z"))  
+(setq 7zr-archive-name (concat 7zr-buffer-filename 7zr-archive-extension))  
 (setq 7zr-patch-number 0.0)
 (setq 7zr-revisions_lastbuffer (current-buffer))
 (setq 7zr-revisions-examine-tmpbuffer (generate-new-buffer-name (concat "7zr-examination_of_" 7zr-buffer-filename)))
@@ -1048,7 +1051,7 @@ See help of `format-time-string' for possible replacements")
   (setq 7zr-buffer-filename-without-extension (sans-extension 7zr-buffer))
   (setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer))
   (setq 7zr-buffer-filename 7zr-buffer)
-  (setq 7zr-archive-name (concat 7zr-buffer-filename  ".7z"))  
+  (setq 7zr-archive-name (concat 7zr-buffer-filename 7zr-archive-extension))  
   (setq 7zr-latest-revision_size "")
   (setq 7zr-latest-revision_datetime "")
  
@@ -1195,7 +1198,7 @@ See help of `format-time-string' for possible replacements")
 		  
 	  )
       ; else fail
-      (message (concat "There already exists an archive named " (buffer-name (current-buffer)) ".7z that is not a 7z-revisions.el archive!"))
+      (message (concat "There already exists an archive named " (buffer-name (current-buffer)) 7zr-archive-extension " that is not a 7z-revisions.el archive!"))
       )
     )
   )            ; 7z-revisions
@@ -1408,7 +1411,6 @@ file if that file already exists.  The overwritep option is ignored."
   (setq 7zr-sl-rev (match-string-no-properties 1))
   (7zr-reconstruct-slow 7zr-sl-rev (line-end-position))
   (find-file-read-only (concat 7zr-temp-directory "rev" 7zr-sl-rev "_of_" 7zr-original-version))
-;    (7z-revisions-view-mode)
   (7zr-view-local-set-keys)
 )
 
@@ -1780,9 +1782,6 @@ previous."
     (setq 7zr-diff-queue_position 0)
     (setq 7zr-view-highlighted_buffer (current-buffer))
 
-   ; (use-local-map (copy-keymap (current-local-map)))
-   ; (local-set-key (kbd "d") '7zr-view_jump_to_next_difference)   ; debug
-   ; (local-set-key (kbd "e") '7zr-view_jump_to_previous_difference)
     )
   )
 
@@ -1858,86 +1857,87 @@ reviewing revisions"
 	  (setq a-end (1+ a-end)
 		b-end (1+ b-end))))
 
+ ;      (when (and (not ancestorp) (string= diff-type "d"))
 
-      (setq a-num_lines (- a-end a-begin)
-	    b-num_lines (- b-end b-begin))
+	(setq a-num_lines (- a-end a-begin)
+	      b-num_lines (- b-end b-begin))
 
 
-      (dotimes (line a-num_lines line)
-	(forward-line)
-	(beginning-of-line)
-	(forward-char 2)
-	(setq a-offset_point_last (point) )
-	(setq column_last 0)
-	(while (and (not (looking-at "\n"))
-		    (not (eobp)))
+	(dotimes (line a-num_lines line)
+	  (forward-line)
+	  (beginning-of-line)
+	  (forward-char 2)
+	  (setq a-offset_point_last (point) )
+	  (setq column_last 0)
+	  (while (and (not (looking-at "\n"))
+		      (not (eobp)))
 	  
-	  (forward-char 1)
-	  (skip-chars-forward "^\n ")
-	  (setq column_current (- (current-column) 2))
-	  (setq a-column_pos (vconcat a-column_pos (make-vector 1 (list column_last column_current))))
-	  (setq a-words (vconcat a-words (make-vector 1 (buffer-substring-no-properties a-offset_point_last (point)))))
-	  (setq a-line_pos (vconcat a-line_pos (make-vector 1 (+ a-begin line))))
-	  (setq a-offset_point_last (point))
-	  (setq column_last column_current)
+	    (forward-char 1)
+	    (skip-chars-forward "^\n ")
+	    (setq column_current (- (current-column) 2))
+	    (setq a-column_pos (vconcat a-column_pos (make-vector 1 (list column_last column_current))))
+	    (setq a-words (vconcat a-words (make-vector 1 (buffer-substring-no-properties a-offset_point_last (point)))))
+	    (setq a-line_pos (vconcat a-line_pos (make-vector 1 (+ a-begin line))))
+	    (setq a-offset_point_last (point))
+	    (setq column_last column_current)
+	    )
 	  )
-	)
-      (beginning-of-line)  
-
-      (dotimes (line b-num_lines line)
-	(forward-line)
-	(beginning-of-line)
-	(if (looking-at "---")
-	    (forward-line 1))
-	(forward-char 2)
-	(setq b-offset_point_last (point) )
-	(setq column_last 0)
-	(while (and (not (looking-at "\n"))
-		    (not   (eobp)))
-	  (forward-char 1)
-	  (skip-chars-forward "^\n ")
-	  (setq column_current (- (current-column) 2))
-	  (setq b-column_pos (vconcat b-column_pos (make-vector 1 (list column_last column_current))))
-	  (setq b-words (vconcat b-words (make-vector 1 (buffer-substring-no-properties b-offset_point_last (point)))))
-	  (setq b-line_pos (vconcat b-line_pos (make-vector 1 (+ b-begin line))))
-	  (setq b-offset_point_last (point))
-	  (setq column_last column_current)
+	(beginning-of-line)  
+	
+	(dotimes (line b-num_lines line)
+	  (forward-line)
+	  (beginning-of-line)
+	  (if (looking-at "---")
+	      (forward-line 1))
+	  (forward-char 2)
+	  (setq b-offset_point_last (point) )
+	  (setq column_last 0)
+	  (while (and (not (looking-at "\n"))
+		      (not   (eobp)))
+	    (forward-char 1)
+	    (skip-chars-forward "^\n ")
+	    (setq column_current (- (current-column) 2))
+	    (setq b-column_pos (vconcat b-column_pos (make-vector 1 (list column_last column_current))))
+	    (setq b-words (vconcat b-words (make-vector 1 (buffer-substring-no-properties b-offset_point_last (point)))))
+	    (setq b-line_pos (vconcat b-line_pos (make-vector 1 (+ b-begin line))))
+	    (setq b-offset_point_last (point))
+	    (setq column_last column_current)
+	    )
 	  )
-	)
+	
+	(set-buffer 7zr-parse-standard-diff-type_lastbuffer)
+	
+	(cond ((and 
+		ancestorp
+		(not (string= diff-type "d")))
+	       (progn
+		 
+		 (setq difference-ranges (7zr-longest-common-word-subsequence-difference-ranges a-words b-words t))
+		 (setq 7zr-parse-standard-diff-type_diff_list (append 7zr-parse-standard-diff-type_diff_list (7zr-map-difference-ranges-to-point-ranges difference-ranges b-line_pos b-column_pos t)))
+		 ))
+	      ((and 
+		(not ancestorp)
+		(not (string= diff-type "d")))
+	       (progn
+		 (setq difference-ranges (7zr-longest-common-word-subsequence-difference-ranges a-words b-words nil))
+		 (setq 7zr-parse-standard-diff-type_diff_list (append 7zr-parse-standard-diff-type_diff_list (7zr-map-difference-ranges-to-point-ranges difference-ranges a-line_pos a-column_pos nil)))
+		 ))
+	      ((not ancestorp)
+	       (progn	     		  
+		 (setq difference-ranges (list (list 0 (1- (length a-words)))))
+		 (setq 7zr-parse-standard-diff-type_diff_list (append 7zr-parse-standard-diff-type_diff_list (7zr-map-difference-ranges-to-point-ranges difference-ranges a-line_pos a-column_pos nil)))
+		 ))
+	      ) ; cond
+	(set-buffer 7zr-parse-standard-diff-type_diffbuffer)
 
-      (set-buffer 7zr-parse-standard-diff-type_lastbuffer)
-      
-      (cond ((and 
-	      ancestorp
-	      (not (string= diff-type "d")))
-	     (progn
-	       
-	       (setq difference-ranges (7zr-longest-common-word-subsequence-difference-ranges a-words b-words t))
-	       (setq 7zr-parse-standard-diff-type_diff_list (append 7zr-parse-standard-diff-type_diff_list (7zr-map-difference-ranges-to-point-ranges difference-ranges b-line_pos b-column_pos t)))
-	       ))
-	    ((and 
-	      (not ancestorp)
-	      (not (string= diff-type "d")))
-	     (progn
-	       (setq difference-ranges (7zr-longest-common-word-subsequence-difference-ranges a-words b-words nil))
-	       (setq 7zr-parse-standard-diff-type_diff_list (append 7zr-parse-standard-diff-type_diff_list (7zr-map-difference-ranges-to-point-ranges difference-ranges a-line_pos a-column_pos nil)))
-	       ))
-	    ((not ancestorp)
-	     (progn	     		  
-	       (setq difference-ranges (list (list 0 (1- (length a-words)))))
-	       (setq 7zr-parse-standard-diff-type_diff_list (append 7zr-parse-standard-diff-type_diff_list (7zr-map-difference-ranges-to-point-ranges difference-ranges a-line_pos a-column_pos nil)))
-	       ))
-	    ) ; cond
-      (set-buffer 7zr-parse-standard-diff-type_diffbuffer)
-
-      
+;	) ; when not delete in progeny     
       ) ; let*
     ) ;while
-  (kill-buffer 7zr-parse-standard-diff-type_diffbuffer)
-  (set-buffer 7zr-parse-standard-diff-type_lastbuffer)
-  (switch-to-buffer 7zr-parse-standard-diff-type_lastbuffer)
-  (7zr-delete-file-if-exists (concat 7zr-temp-directory "7zr-parse-" 7zr-original-version))
-  7zr-parse-standard-diff-type_diff_list
+(kill-buffer 7zr-parse-standard-diff-type_diffbuffer)
+(set-buffer 7zr-parse-standard-diff-type_lastbuffer)
+(switch-to-buffer 7zr-parse-standard-diff-type_lastbuffer)
+(7zr-delete-file-if-exists (concat 7zr-temp-directory "7zr-parse-" 7zr-original-version))
+7zr-parse-standard-diff-type_diff_list
 
  
 ) ; 7zr-parse-standard-diff-type
@@ -2240,7 +2240,11 @@ highlighting changes when reviewing revisions"
 	   (beginning_point_list '()) 
 	   line_pos_current column_pos_current
 	   )
-      
+       (if (and 
+       	   (> (length difference_ranges) 0)
+       	   (not (eql (car (cdr (car difference_ranges))) -1)))
+	  
+
       (mapc 
        (lambda (x) 
 	 (goto-char (point-min))
@@ -2274,7 +2278,7 @@ highlighting changes when reviewing revisions"
 	 (list begin end)
 ;	 )
 	 ) difference_ranges)
-     
+      ) ;if    
       (toggle-read-only 1)
       (set-buffer-modified-p nil) 
       beginning_point_list
@@ -2374,7 +2378,7 @@ is invoked."
    (interactive)
    (setq 7zr-buffer-filename (buffer-name (current-buffer))) 
    (setq 7zr-buffer-filename-without-extension (sans-extension 7zr-buffer-filename)) 
-   (setq 7zr-archive-name (concat 7zr-buffer-filename ".7z"))  
+   (setq 7zr-archive-name (concat 7zr-buffer-filename 7zr-archive-extension))  
    (if 
        (file-exists-p 7zr-archive-name)
        (7zr-append-archive)
