@@ -1,6 +1,6 @@
 # 7z-revisions
 Emacs app that saves and allows one to view revisions of a single file, via a .7z archive, useful when git is considered over-kill.
-Also, provides word by word differential highlighting, i.e. none of this loser line based highlighting, like you see in github. 
+Also, provides word by word differential highlighting. 
 
 
  Commentary:
