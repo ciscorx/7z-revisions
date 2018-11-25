@@ -33,6 +33,10 @@
   ;;
   ;; Also, sha1sum hash values for each revision are saved in the
   ;; hashtable stored in the archive and can be search from the menu.
+  ;;
+  ;; While in dired-mode, the key binding z = dired-7z-revisions which views 
+  ;;   the 7z-revisions archive at point
+
 
   ;; Required features:
   ;;   hl-line+.el
@@ -685,12 +689,13 @@ what format will be outputted."
 ;	 (7zr-view-local-set-keys)
 	 (7zr-view-mode)
 	   ; (7zr-summary-reconst-last-del)
-	 (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
+-	 (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
 	 ))
 
-      	((looking-at "\\([0-9]+\.?[0-9]*\\)")
+      	((looking-at "\\([0-9]+\.?[0-9]*\\)[ \t]+[0-9]+[ \t]+\\(.*\\)")
 	 (progn
-	   (message (match-string-no-properties 0))
+	   (setq 7zr-view_date (match-string-no-properties 2)) 
+	   (message 7zr-view_date)
 	   (setq 7zr-summary-rev-at-point (match-string-no-properties 1))
 	   (7zr-reconstruct-rev-from-patches 7zr-summary-rev-at-point)
 	   ))
@@ -924,6 +929,7 @@ See help of `format-time-string' for possible replacements")
 (setq 7zr-patch-command "patch -p0")
 (setq 7zr-temp-directory "/tmp/")
 (setq 7zr-view_highlightp t)
+(setq 7zr-view_date "")
 ; (setq 7zr-buffer (minibuffer-selected-window))
 ; (setq 7zr-buffer-FQPN (buffer-file-name 7zr-buffer))
 ; (setq 7zr-buffer-filename (file-name-nondirectory 7zr-buffer-FQPN))
@@ -1388,7 +1394,7 @@ See help of `format-time-string' for possible replacements")
 		  
 	  )
       ; else fail
-      (message (concat "The file " (buffer-name (current-buffer)) 7zr-archive-extension " is not a 7z-revisions.el archive!"))
+      (message (concat "The file " 7zr-buffer " is not a 7z-revisions.el archive!"))
       )
     )
   )            ; dired-7z-revisions
@@ -1655,7 +1661,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
  pressed."
   (interactive)
   (let (rev_num (string-to-number rev))
-    (set-buffer 7zr-revisions_tmpbuffer)  ; this is redundant
+    (set-buffer 7zr-revisions_tmpbuffer)  ; this should instead be a buffer-local variable
     (setq 7zr-reconstruct-patch-to-apply "")
     (setq rev_num (string-to-number rev))
     (setq 7zr-summary-current-line (string-to-number (format-mode-line "%l")))
@@ -1876,6 +1882,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
     (when 7zr-view_highlightp
       (7zr-view-highlight-changes t t)
       )
+    (message (concat "Revised on " 7zr-view_date))
     (7zr-view-mode)
 ;    (7zr-view-local-set-keys)
     )
