@@ -34,7 +34,7 @@
   ;; Also, sha1sum hash values for each revision are saved in the
   ;; hashtable stored in the archive and can be search from the menu.
   ;;
-  ;; While in dired-mode, the key binding z = dired-7z-revisions which views 
+  ;; While in dired-mode, the key binding z = dired-7z-revisions, which views 
   ;;   the 7z-revisions archive at point
 
 
@@ -129,9 +129,7 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
                   :help "Close all 7zr-revision-buffers"))
     (define-key map [menu-bar 7zr-summary sep] menu-bar-separator)
     map)
-  "Keymap for `7zr-summary-mode'.
-Many other modes, such as `mail-mode', `outline-mode' and `indented-7zr-summary-mode',
-inherit all the commands defined in this map.")
+  "Keymap for `7zr-summary-mode'.")
 
 
 
@@ -568,6 +566,11 @@ the patch files to be deleted in the region."
 
 
 
+
+(defun 7zr-view_datetime ()
+(interactive)
+(message (concat "Revised on " 7zr-view_date))
+)
     
 (defun 7zr-view-toggle-highlight-changes ()
 " When a revision is being reviewed highlight any changes between
@@ -664,24 +667,21 @@ what format will be outputted."
 	  ;(7zr-summary-reconst-last-del)
 	   (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
 
-
-
-
-
-
-
 	   ))
+
+
 	; viewing last revision
       ((looking-at (number-to-string 7zr-patch-number))
        (progn
 	 (save-window-excursion
-	   (setq 7zr-summary-last-line (string-to-number (format-mode-line "%l")))
-	   (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-prepend-to-latest-revision 7zr-original-version))
-	   (7zr-rename-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version) (concat 7zr-temp-directory "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version) t)
-	   (setq 7zr-revisions_lastbuffer (current-buffer))
+	   nil
+	    (setq 7zr-summary-last-line (string-to-number (format-mode-line "%l")))
+	    (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-prepend-to-latest-revision 7zr-original-version))
+	    (7zr-rename-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version) (concat 7zr-temp-directory "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version) t)
+	    (setq 7zr-revisions_lastbuffer (current-buffer))
 	   )
-	 (setq 7zr-pointer-lastviewed (number-to-string 7zr-patch-number))
-	 (find-file-read-only (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
+	  (setq 7zr-pointer-lastviewed (number-to-string 7zr-patch-number))
+	  (find-file-read-only (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
 	 (when 7zr-view_highlightp	     
 ;	   (7zr-parse-standard-diff-type t)
 	   (7zr-view-highlight-changes t nil)
@@ -689,9 +689,11 @@ what format will be outputted."
 ;	 (7zr-view-local-set-keys)
 	 (7zr-view-mode)
 	   ; (7zr-summary-reconst-last-del)
--	 (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
+	  (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
+         nil
 	 ))
 
+         ;; viewing any other revision
       	((looking-at "\\([0-9]+\.?[0-9]*\\)[ \t]+[0-9]+[ \t]+\\(.*\\)")
 	 (progn
 	   (setq 7zr-view_date (match-string-no-properties 2)) 
@@ -699,7 +701,7 @@ what format will be outputted."
 	   (setq 7zr-summary-rev-at-point (match-string-no-properties 1))
 	   (7zr-reconstruct-rev-from-patches 7zr-summary-rev-at-point)
 	   ))
-	(t nil)
+	((t nil))
 	)
   )
 
@@ -823,6 +825,7 @@ what format will be outputted."
     (define-key map (kbd "e") '7zr-view_jump_to_previous_difference)
     (define-key map (kbd "p") '7zr-view_previous_page)
     (define-key map (kbd "n") '7zr-view_next_page)
+    (define-key map (kbd "t") '7zr-view_datetime)
     (define-key map (kbd "q") '7zr-view-quit)
     (define-key map [menu-bar 7zr-view]
       (cons "7zr-view" (make-sparse-keymap "7zr-view")))
@@ -842,6 +845,9 @@ what format will be outputted."
     (define-key map [menu-bar 7zr-view prev_page]
       '(menu-item "View Previous Revision" 7zr-view_previous_page
                   :help "View next revision in sequence."))
+    (define-key map [menu-bar 7zr-view 7zr-view_datetime]
+      '(menu-item 7zr-view_date 7zr-view_datetime
+                  :help "View datetime of current revision."))
     map)
   "Keymap while 7zr-view-mode is active.")
 
@@ -2512,31 +2518,33 @@ highlighting changes when reviewing revisions"
   and a file of size 0 named in the form of a message indicating that the archive was 
   created by 7z-revisions.el"
   (let ((tmphashvalue ""))
-
     (when (not (file-directory-p 7zr-temp-directory))
       (make-directory 7zr-temp-directory t))
+    (save-excursion
+      (save-window-excursion
+	(setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer-filename))
+	
+	(setq 7zr-original-version (concat (sans-extension (file-name-nondirectory (buffer-file-name (current-buffer)))) (7zr-current-date-time) "." 7zr-buffer-filename-extension))    
+	(setq 7zr-current-original-version 7zr-original-version)
+	(make-local-variable '7zr-current-original-version)
+	(shell-command (concat "cp " 7zr-buffer-filename " " 7zr-temp-directory 7zr-original-version))
+	(shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " 7zr-archive-name " " 7zr-temp-directory 7zr-original-version))
 
-    (setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer-filename))
-      
-    (setq 7zr-original-version (concat (sans-extension (file-name-nondirectory (buffer-file-name (current-buffer)))) (7zr-current-date-time) "." 7zr-buffer-filename-extension))    
-    (setq 7zr-current-original-version 7zr-original-version)
-    (make-local-variable '7zr-current-original-version)
-    (shell-command (concat "cp " 7zr-buffer-filename " " 7zr-temp-directory 7zr-original-version))
-    (shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " 7zr-archive-name " " 7zr-temp-directory 7zr-original-version))
-
-    (setq tmphashvalue (string-trim-final-newline (shell-command-to-string (concat "sha1sum " 7zr-temp-directory 7zr-original-version " | awk '{print $1}'"))))
+	(setq tmphashvalue (string-trim-final-newline (shell-command-to-string (concat "sha1sum " 7zr-temp-directory 7zr-original-version " | awk '{print $1}'"))))
 
 
-    (append-to-file (concat "(puthash \"" 7zr-original-version  "\" \"" tmphashvalue "\" 7zr-hasht)\n") nil (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
-    (rename-file   (concat 7zr-temp-directory 7zr-original-version)  (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version) t)
-    (shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " 7zr-archive-name " " 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version))
-    (shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " 7zr-archive-name " " 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
-    (shell-command (concat "touch " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
-    (shell-command (concat "7z a " 7zr-archive-name " " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
+	(append-to-file (concat "(puthash \"" 7zr-original-version  "\" \"" tmphashvalue "\" 7zr-hasht)\n") nil (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
+	(rename-file   (concat 7zr-temp-directory 7zr-original-version)  (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version) t)
+	(shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " 7zr-archive-name " " 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version))
+	(shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " 7zr-archive-name " " 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
+	(shell-command (concat "touch " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
+	(shell-command (concat "7z a " 7zr-archive-name " " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
   
-    (delete-file (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version))
-    (delete-file (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
-    (delete-file (concat 7zr-temp-directory 7zr-archive-created-by-message))
+	(delete-file (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version))
+	(delete-file (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
+	(delete-file (concat 7zr-temp-directory 7zr-archive-created-by-message))
+	)
+      )
     )
   (message (concat "Created archive " 7zr-archive-name " for " 7zr-original-version))
   
