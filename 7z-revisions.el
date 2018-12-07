@@ -1,66 +1,76 @@
-;; 7z-revisions.el --- To save and review revisions using a .7z archive
-
+;; 7z-revisions.el --- To save and review revisions using a .7z
+;; archive, providing word by word differential highlighting.  Also,
+;; provides syntax coloring when viewing raw diff files.
+;;
 ;; authors/maintainers: ciscorx@gmail.com                                                                    
-
-;; This file is free software; you can redistribute it and/or
-;; modify it under the terms of the GNU General Public License
-;; as published by the Free Software Foundation; either version 3
-;; of the License, or (at your option) any later version.
-
-  ;; Commentary:
-  ;;
-  ;; 7z-revisions-mode is an Emacs minor mode that saves the current
-  ;; buffer to a 7-zip archive of the same name, whenever a
-  ;; save-buffer command is issued.  A timestamp in the form of
-  ;; MMDDYY-HHMMSS is appended to the archived file.  If the .7z
-  ;; archive file already exists then it incrementally saves the
-  ;; latest revision by adding a new patch to the archive.  The .7z
-  ;; extension can be altered to something else, such as .8z, by
-  ;; setting the global variable 7zr-archive-extension to ".8z".
-  ;; Additionally, the function 7z-revisions can be called
-  ;; interactively to view or consolidate past revisions in the
-  ;; archive.
-  ;; 
-  ;; When 7z-revisions is called, the following key bindings take
-  ;;   effect: Return = view the revision at point, q = quit, c =
-  ;;   consolidate region, g = goto date, h = toggle highlight
-  ;;   differences
-  ;; While viewing a revision: q = quit, n = next, p = previous.
-  ;;   Also, when highlight changes is enabled, d = jump to next
-  ;;   difference/change, e = jump to previous change
-  ;;
-  ;; There are also some functions in the menu which provide for
-  ;; consoldating the current days worth of changes, or last hour
-  ;; worth of changes, etc.
-  ;;
-  ;; Also, sha1sum hash values for each revision are saved in the
-  ;; hashtable stored in the archive and can be search from the menu.
-  ;;
-  ;; While in dired-mode, the key binding z = dired-7z-revisions, which views 
-  ;;   the 7z-revisions archive at point
-
-
-  ;; Required features:
-  ;;   hl-line+.el
-  ;;   p7zip
-  ;;   diffutils  ( just the patch and diff commands )
-  ;;
-  ;; Bugs:
-  ;;
-  ;; - File names must contain at least 1 alphabetical character or
-  ;; underscore or hyphen, and in this regard, cannot take the form of a
-  ;; real number, e.g. "1.0".  
-  ;; - Each archive can only track one file.  (let's call this a
-  ;; feature)
-  ;; - There's no way to add revision notes.
-  ;; - buffer local variables arent working properly enough to allow
-  ;;     for two archives to be opened at once.  More precisely, it
-  ;;     appears that elisp has trouble with using a buffer local
-  ;;     variable to store a vector; it only seems to store the first
-  ;;     element.  However, elisp seems to have no problem with buffer
-  ;;     local lists.
-  ;; 
-  ;;  This program was written using emacs 23.3.1 on ubuntu 12.04.
+;;
+;; This file is free software; you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published
+;; by the Free Software Foundation; either version 3 of the License,
+;; or (at your option) any later version.
+;;
+;; Commentary:
+;;
+;; 7z-revisions-mode is an Emacs minor mode that saves the current
+;; buffer to a 7-zip archive of the same name, whenever a save-buffer
+;; command is issued.  A timestamp in the form of MMDDYY-HHMMSS is
+;; appended to the archived file.  If the .7z archive file already
+;; exists then it incrementally saves the latest revision by adding a
+;; new patch to the archive.  The .7z extension can be altered to
+;; something else, such as .8z, by setting the global variable
+;; 7zr-archive-extension to ".8z".  Additionally, the function
+;; 7z-revisions can be called interactively to view or consolidate
+;; past revisions in the archive.
+;; 
+;; When 7z-revisions is called, the following key bindings take
+;;   effect: Enter = view the selected revision, j = view raw diff
+;;   file of selected revision, q = quit, c = consolidate region, g =
+;;   goto date, h = toggle highlight differences
+;;
+;; While viewing a revision: q = quit, n = next, p = previous.  Also,
+;;   when highlight changes is enabled, d = jump to next
+;;   difference/change, e = jump to previous change, j = view the raw
+;;   diff file
+;;
+;; While viewing a raw diff file: q = quit, n = next, p = previous.
+;;   r = switch to revision view
+;; 
+;; There are also some functions in the menu which provide for
+;; consoldating the current days worth of changes, or last hour worth
+;; of changes, etc.
+;;
+;; Also, sha1sum hash values for each revision are saved in the
+;; hashtable stored in the archive and can be search from the menu.
+;;
+;; While in dired-mode, the key binding z = dired-7z-revisions, which
+;;   views the 7z-revisions archive at point
+;;
+;; Required features:
+;;   hl-line+.el
+;;   p7zip
+;;   diffutils  ( just the patch and diff commands )
+;;
+;; Known Bugs:
+;;
+;; - File names must contain at least 1 alphabetical character or
+;;     underscore or hyphen, and in this regard, cannot take the form
+;;     of a real number, e.g. "1.0".
+;; - Each archive can only track one file.  (let's call this a
+;;     feature)
+;; - There's no way to add revision notes.
+;; - Buffer local variables arent working properly enough to allow for
+;;     two archives to be opened at once.  More precisely, it appears
+;;     that elisp has trouble with using a buffer local variable to
+;;     store a vector; it only seems to store the first element.
+;;     However, elisp seems to have no problem with buffer local
+;;     lists.
+;; - When viewing some middle revision, followed by the original
+;;     version, then followed by the first revision, it hangs
+;;     indefinitely, where upon the C-g key must be invoked.
+;; - Words added to beginning of line additionally highlight following
+;;     word green. In some cases highlighting is off by 1 word.
+;; 
+;;  This program was written using emacs 23.3.1 on ubuntu 12.04.
 
 ;;; 7zr-summary-mode.el code ------------------------
 
