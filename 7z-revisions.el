@@ -14,7 +14,9 @@
   ;; save-buffer command is issued.  A timestamp in the form of
   ;; MMDDYY-HHMMSS is appended to the archived file.  If the .7z
   ;; archive file already exists then it incrementally saves the
-  ;; latest revision by adding a new patch to the archive.
+  ;; latest revision by adding a new patch to the archive.  The .7z
+  ;; extension can be altered to something else, such as .8z, by
+  ;; setting the global variable 7zr-archive-extension to ".8z".
   ;; Additionally, the function 7z-revisions can be called
   ;; interactively to view or consolidate past revisions in the
   ;; archive.
@@ -90,7 +92,7 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
     (define-key map (kbd "g") '7zr-summary-goto-date)
     (define-key map (kbd "c") '7zr-summary-consolidate-region)
     (define-key map (kbd "h") '7zr-view-toggle-highlight-changes)
-
+    (define-key map (kbd "j") '7zr-summary-view-raw-diff-file)
 ;    (define-key map (kbd "r") '7zr-reconstruct-sl)
     (define-key map [menu-bar 7zr-summary]
       (cons "7zr-summary" (make-sparse-keymap "7zr-summary")))
@@ -99,6 +101,9 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
     (define-key map [menu-bar 7zr-summary view-revision]
       '(menu-item "View Revision" 7zr-summary-view-revision
                   :help "View the Revision at Point"))
+    (define-key map [menu-bar 7zr-summary view-diff-file]
+      '(menu-item "View diff file" 7zr-summary-view-raw-diff-file
+                  :help "View the diff file associated with selected revision."))
    (define-key map [menu-bar 7zr-summary goto-sha]
       '(menu-item "Goto sha1 hashvalue" 7zr-summary-goto-sha1
                   :help "Find revision pertaining to given sha1sum hash value."))
@@ -410,6 +415,7 @@ where it lies."
 
 
 
+
 (defun 7zr-summary-consolidate-today ()
   (interactive)
   (let (begin end today tomorrow)
@@ -701,7 +707,7 @@ what format will be outputted."
 	   (setq 7zr-summary-rev-at-point (match-string-no-properties 1))
 	   (7zr-reconstruct-rev-from-patches 7zr-summary-rev-at-point)
 	   ))
-	((t nil))
+	(t nil)
 	)
   )
 
@@ -787,12 +793,18 @@ what format will be outputted."
 
 (defun 7zr-view-quit ()
 (interactive)
-  " kill current buffer "
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-pointer-lastviewed))
 (kill-buffer)
 )
+
+(defun 7zr-view-quit_view_diff ()
+(interactive)
+(kill-buffer)
+(7zr-summary-view-raw-diff-file)
+)
+
 
 (defun 7zr-view_next_page ()
   (interactive)
@@ -826,12 +838,16 @@ what format will be outputted."
     (define-key map (kbd "p") '7zr-view_previous_page)
     (define-key map (kbd "n") '7zr-view_next_page)
     (define-key map (kbd "t") '7zr-view_datetime)
+    (define-key map (kbd "j") '7zr-view-quit_view_diff)
     (define-key map (kbd "q") '7zr-view-quit)
     (define-key map [menu-bar 7zr-view]
       (cons "7zr-view" (make-sparse-keymap "7zr-view")))
     (define-key map [menu-bar 7zr-view quit]
       '(menu-item "Quit View" 7zr-view-quit
                   :help "Quit viewing this revision"))
+   (define-key map [menu-bar 7zr-view quit_view_diff]
+      '(menu-item "View diff file" 7zr-view-quit_view_diff
+                  :help "View raw diff file of this revision."))
     (define-key map [menu-bar 7zr-view jump_next]
       '(menu-item "Jump to Difference" 7zr-view_jump_to_next_difference
                   :help "Jump to the next highlighted difference in current revision"))
@@ -844,7 +860,7 @@ what format will be outputted."
                   :help "View next revision in sequence."))
     (define-key map [menu-bar 7zr-view prev_page]
       '(menu-item "View Previous Revision" 7zr-view_previous_page
-                  :help "View next revision in sequence."))
+                  :help "View previous revision in sequence."))
     (define-key map [menu-bar 7zr-view 7zr-view_datetime]
       '(menu-item 7zr-view_date 7zr-view_datetime
                   :help "View datetime of current revision."))
@@ -860,7 +876,123 @@ what format will be outputted."
 
 (provide '7zr-view-mode)
 
-;;;;;; 7z-view-mode ends --------------------------------------------
+;;;;;; 7zr-view-mode ends --------------------------------------------
+
+;;;;;; 7zr-view-raw-diff-mode begins
+
+(defun 7zr-view-raw-diff-quit ()
+  (interactive)
+  " kill current buffer "
+; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
+; (7zr-delete-file-if-exists (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
+  (kill-buffer)
+  (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
+  )
+
+(defun 7zr-view-raw-diff-quit_then_view_revision ()
+  (interactive)
+  " kill current buffer "
+; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
+; (7zr-delete-file-if-exists (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
+  (kill-buffer)
+  (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
+  (7zr-summary-view-revision)
+  )
+
+(defun 7zr-view-raw-diff_next_page ()
+  (interactive)
+  (kill-buffer)
+  (switch-to-buffer 7zr-revisions_lastbuffer)
+  (forward-line 1)
+  (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
+  (7zr-summary-view-raw-diff-file) 
+  )
+
+(defun 7zr-view-raw-diff_previous_page ()
+  (interactive)
+  (kill-buffer)
+  (switch-to-buffer 7zr-revisions_lastbuffer)
+  (forward-line -1)
+  (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
+  (7zr-summary-view-raw-diff-file) 
+
+  )
+
+(defun 7zr-summary-view-raw-diff-file ()
+"View the raw diff file for selected revision number"
+(interactive)
+  (beginning-of-line)
+  (cond ((looking-at 7zr-original-version)
+	 (progn
+	   nil
+	   ))
+
+	((looking-at 7zr-prepend-to-latest-revision)
+	 (progn
+	   nil
+	   ))
+
+         ;; viewing any  diff file
+      	((looking-at "\\([0-9]+\.?[0-9]*\\)[ \t]+[0-9]+[ \t]+\\(.*\\)")
+	 (progn
+	   (setq 7zr-view_date (match-string-no-properties 2)) 
+	   (message 7zr-view_date)
+	   (save-window-excursion
+	     (setq 7zr-summary-rev-at-point (match-string-no-properties 1))
+	     (setq 7zr-pointer-lastviewed_raw_diff_file (concat 7zr-temp-directory 7zr-prepend-to-diff-file 7zr-summary-rev-at-point "_of_" 7zr-original-version))
+	     (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-summary-rev-at-point))
+	     (rename-file (concat 7zr-temp-directory 7zr-summary-rev-at-point) 7zr-pointer-lastviewed_raw_diff_file t)
+	     )
+	   (setq 7zr-revisions_lastbuffer (current-buffer))
+	   (find-file 7zr-pointer-lastviewed_raw_diff_file)
+	   (7zr-view-raw-diff-file-mode 1)
+	   (toggle-read-only 1)
+	  
+	   ))
+	(t nil)
+	)
+  
+)
+
+(defvar 7zr-view-raw-diff-file-mode-map 
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "p") '7zr-view-raw-diff_previous_page)
+    (define-key map (kbd "n") '7zr-view-raw-diff_next_page)
+    (define-key map (kbd "t") '7zr-view_datetime)
+    (define-key map (kbd "r") '7zr-view-raw-diff-quit_then_view_revision)
+    (define-key map (kbd "q") '7zr-view-raw-diff-quit)
+    (define-key map [menu-bar 7zr-view-raw-diff]
+      (cons "7zr-view-raw-diff" (make-sparse-keymap "7zr-view-raw-diff")))
+    (define-key map [menu-bar 7zr-view-raw-diff quit]
+      '(menu-item "Quit View" 7zr-view-raw-diff-quit
+                  :help "Quit viewing this raw diff file."))
+    (define-key map [menu-bar 7zr-view-raw-diff quit-view-revision]
+      '(menu-item "View revision" 7zr-view-raw-diff-quit_then_view_revision
+                  :help "Switch to revision view."))
+ 
+   (define-key map [menu-bar 7zr-view-raw-diff sep] menu-bar-separator)
+    (define-key map [menu-bar 7zr-view-raw-diff next_page]
+      '(menu-item "View Next Raw Diff" 7zr-view-raw-diff_next_page
+                  :help "View next raw diff in the sequence."))
+    (define-key map [menu-bar 7zr-view-raw-diff prev_page]
+      '(menu-item "View Previous Raw Diff" 7zr-view-raw-diff_previous_page
+                  :help "View previous raw diff in the sequence."))
+    (define-key map [menu-bar 7zr-view-raw-diff 7zr-view-raw-diff_datetime]
+      '(menu-item "Datetime of diff" 7zr-view_datetime
+                  :help "View datetime of current diff."))
+    map)
+  "Keymap while 7zr-view-raw-diff-file-mode is active.")
+
+;;;###autoload
+(define-minor-mode 7zr-view-raw-diff-file-mode
+  "A temporary minor mode to be activated only when viewing a 7z-revisions diff file."
+  nil
+  :lighter " 7zrvrd"
+  7zr-view-raw-diff-file-mode-map)
+
+(provide '7zr-view-raw-diff-file-mode)
+
+;;;;;; 7zr-view-raw-diff-mode ends
 
 ;;;;;; 7z-revisions.el begins ---- ----------------------------------
 
@@ -946,9 +1078,12 @@ See help of `format-time-string' for possible replacements")
 (setq 7zr-pointer-lastviewed_nearest_ancestor "")
 (setq 7zr-pointer-lastviewed_nearest_progeny "")
 (setq 7zr-pointer-lastviewed_last_nearest_progeny "")
+(setq 7zr-pointer-lastviewed_raw_diff_file "")
+(setq 7zr-pointer-lastviewed_raw_diff_file2 "")
 (setq 7zr-temp-string-variable "")
 (setq 7zr-temp-number-variable 0)
 (setq 7zr-prepend-to-reconstruct_wip "7zr-prepend-to-reconstruct_wip")
+(setq 7zr-prepend-to-diff-file "diff_")
 (setq 7zr-prepend-to-latest-revision "7zr-latest-")
 (setq 7zr-prepend-to-current-version "7zr-current-")   ; not used
 (setq 7zr-prepend-to-hash-file "7zr-sha1-")
@@ -1720,7 +1855,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 		    (setq 7zr-valid-rev-in-tempp nil)
 		    )
 		  )
-		)
+		) ; progn
 	
 	    (setq 7zr-valid-rev-in-tempp nil)
 	    )

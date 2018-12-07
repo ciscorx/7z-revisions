@@ -1,17 +1,20 @@
 # 7z-revisions
 Emacs app that saves and allows one to view revisions of a single file, via a .7z archive, useful when git is considered over-kill.
-Also, provides word by word differential highlighting. 
+Also, provides word by word differential highlighting.  Also, provides syntax coloring when viewing raw diff files.
 
 
  Commentary:
 
  7z-revisions-mode is an Emacs minor mode that saves the current
- buffer to a 7-zip archive of the same name, whenever a save-buffer
- command is issued.  A timestamp in the form of MMDDYY-HHMMSS is
- appended to the archived file.  If the .7z archive file already
- exists then incrementally saves the latest revision by adding a patch
- to the archive.  Additionally, the function 7z-revisions can be
- called interactively to view or consolidate past revisions in the
+ buffer to a 7-zip archive of the same name, whenever a
+ save-buffer command is issued.  A timestamp in the form of
+ MMDDYY-HHMMSS is appended to the archived file.  If the .7z
+ archive file already exists then it incrementally saves the
+ latest revision by adding a new patch to the archive.  The .7z
+ extension can be altered to something else, such as .8z, by
+ setting the global variable 7zr-archive-extension to ".8z".
+ Additionally, the function 7z-revisions can be called
+ interactively to view or consolidate past revisions in the
  archive.
  
  When 7z-revisions is called the following key bindings are enabled:
@@ -25,10 +28,17 @@ Also, provides word by word differential highlighting.
  q = quit, 
  n = next, 
  p = previous,  
+ j = view the raw diff file
 
  When highlight changes is enabled in view mode:
  d = jump to next difference/change, 
  e = jump to previous change,
+
+ While viewing a raw diff file:
+ q = quit,
+ n = next,
+ p = previous,
+ r = switch to revision view
 
  There are also some functions in the menu which provide for
  consoldating the current days worth of changes, or last hour
@@ -43,7 +53,7 @@ Also, provides word by word differential highlighting.
    p7zip
    diffutils  ( just the patch and diff commands )
 
- Bugs:
+ Known Bugs:
 
  - File names must contain at least 1 alphabetical character or
  underscore or hyphen, and in this regard, cannot take the form of a
@@ -56,5 +66,10 @@ Also, provides word by word differential highlighting.
      that elisp has trouble with using a buffer local variable to
      store a vector; it only seems to store the first element.
      However, elisp seems to have no problem with buffer local lists.
- 
+ - When viewing some middle revision, followed by the original
+     version, then followed by the first revision, it hangs
+     indefinitely, where upon the C-g key must be invoked.
+ - Words added to beginning of line additionally highlight following
+     word green. In some cases highlighting is off by 1 word.
+
   This program was written using emacs 23.3.1 on ubuntu 12.04.
