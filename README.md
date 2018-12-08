@@ -39,6 +39,8 @@ Also, provides word by word differential highlighting.  Also, provides syntax co
  n = next,
  p = previous,
  r = switch to revision view
+ d = jump to next change hunk
+ e = jump to previous change hunk
 
  There are also some functions in the menu which provide for
  consoldating the current days worth of changes, or last hour
