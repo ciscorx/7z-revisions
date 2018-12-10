@@ -22,6 +22,9 @@
 ;; 7z-revisions can be called interactively to view or consolidate
 ;; past revisions in the archive.
 ;; 
+;; Some useful commands when editing your document:
+;;     M-x 7zr-goto-line-of-last-revision 
+;;
 ;; When 7z-revisions is called, the following key bindings take
 ;;   effect: Enter = view the selected revision, j = view raw diff
 ;;   file of selected revision, q = quit, c = consolidate region, g =
@@ -35,7 +38,8 @@
 ;; While viewing a raw diff file: q = quit, n = next, p = previous,
 ;;   r = switch to revision view,  d = jump to next
 ;;   change hunk, e = jump to previous change hunk
-;; 
+;;
+;;
 ;; There are also some functions in the menu which provide for
 ;; consoldating the current days worth of changes, or last hour worth
 ;; of changes, etc.
@@ -73,7 +77,7 @@
 ;; 
 ;;  This program was written using emacs 23.3.1 on ubuntu 12.04.
 
-;;; 7zr-summary-mode.el code ------------------------
+;;; 7zr-summary-mode.el begins ------------------------
 
 (setq debug-on-error t)
 
@@ -754,14 +758,14 @@ what format will be outputted."
 ;;; 7zr-summary-mode.el ends  -----------------------------------
 
 
-;;; 7zr-view-mode begins ----------------------------------------
+;;; 7zr-view-mode.el begins ----------------------------------------
 
 
 (defun 7zr-view_jump_to_next_difference ()
+  "This function is called from a key binding of 7zr-view-mode"
   (interactive)
   (setq 7zr-view_jump_current_buffer (current-buffer))
   (when (setq diff_queue_length (buffer-local-value '7zr-diff-queue_length 7zr-view_jump_current_buffer))  
-
 
  ; (setq diff_queue_position 7zr-diff-queue_position)
 ;  (setq diff_queue_position (buffer-local-value '7zr-diff-queue_position 7zr-view_jump_current_buffer))
@@ -781,8 +785,8 @@ what format will be outputted."
 
 
 (defun 7zr-view_jump_to_previous_difference ()
-  (interactive)
-  
+  "This function is called from a key binding of 7zr-view-mode"
+  (interactive)  
   (setq 7zr-view_jump_current_buffer (current-buffer))
  ; (setq diff_queue_position 7zr-diff-queue_position)
 ;  (setq diff_queue_position (buffer-local-value '7zr-diff-queue_position 7zr-view_jump_current_buffer))
@@ -802,7 +806,8 @@ what format will be outputted."
   
 
 (defun 7zr-view-quit ()
-(interactive)
+  "This function is called from a key binding of 7zr-view-mode"
+  (interactive)
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-pointer-lastviewed))
@@ -810,6 +815,7 @@ what format will be outputted."
 )
 
 (defun 7zr-view-quit_view_diff ()
+  "This function is called from a key binding of 7zr-view-mode"
   (interactive)
   (let (current_line_num (not_found t) diff_line_num (diff_line_num_highest 0) (diff_line_num_highest_pos 0))
     (setq current_line_num (string-to-number (format-mode-line "%l")))
@@ -828,12 +834,14 @@ what format will be outputted."
       )
     (beginning-of-buffer)
     (goto-char diff_line_num_highest_pos)
+    (beginning-of-line)
     (7zr-view_datetime)
     )
   )
 
 
 (defun 7zr-view_next_page ()
+  "This function is called from a key binding of 7zr-view-mode"
   (interactive)
   (setq 7zr-view-last-pos (point))
   (kill-buffer)
@@ -846,6 +854,7 @@ what format will be outputted."
   )
 
 (defun 7zr-view_previous_page ()
+  "This function is called from a key binding of 7zr-view-mode"
   (interactive)
   (setq 7zr-view-last-pos (point))
   (kill-buffer)
@@ -876,10 +885,10 @@ what format will be outputted."
       '(menu-item "View diff file" 7zr-view-quit_view_diff
                   :help "View raw diff file of this revision."))
     (define-key map [menu-bar 7zr-view jump_next]
-      '(menu-item "Jump to Difference" 7zr-view_jump_to_next_difference
+      '(menu-item "Jump to next difference" 7zr-view_jump_to_next_difference
                   :help "Jump to the next highlighted difference in current revision"))
     (define-key map [menu-bar 7zr-view jump_prev]
-      '(menu-item "Jump to previous Difference" 7zr-view_jump_to_next_difference
+      '(menu-item "Jump to previous difference" 7zr-view_jump_to_previous_difference
                   :help "Jump to the previous highlighted difference in current revision"))
     (define-key map [menu-bar 7zr-view sep] menu-bar-separator)
     (define-key map [menu-bar 7zr-view next_page]
@@ -903,9 +912,9 @@ what format will be outputted."
 
 (provide '7zr-view-mode)
 
-;;;;;; 7zr-view-mode ends --------------------------------------------
+;;;;;; 7zr-view-mode.el ends --------------------------------------------
 
-;;;;;; 7zr-view-raw-diff-mode begins
+;;;;;; 7zr-view-raw-diff-mode.el begins
 
 (defun 7zr-view-raw-diff-quit ()
   (interactive)
@@ -929,6 +938,7 @@ what format will be outputted."
 )
 
 (defun 7zr-view-raw-diff-quit_then_view_revision ()
+"This function is called from a key binding of 7zr-view-raw-diff-file-mode"
   (interactive)
   " kill current buffer "
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
@@ -947,6 +957,7 @@ what format will be outputted."
   )
 
 (defun 7zr-view-raw-diff_next_page ()
+"This function is called from a key binding of 7zr-view-raw-diff-file-mode"
   (interactive)
   (kill-buffer)
   (switch-to-buffer 7zr-revisions_lastbuffer)
@@ -956,6 +967,7 @@ what format will be outputted."
   )
 
 (defun 7zr-view-raw-diff_previous_page ()
+"This function is called from a key binding of 7zr-view-raw-diff-file-mode"
   (interactive)
   (kill-buffer)
   (switch-to-buffer 7zr-revisions_lastbuffer)
@@ -966,17 +978,25 @@ what format will be outputted."
   )
 
 (defun 7zr-view-raw-diff_next_change_hunk ()
+"This function is called from a key binding of 7zr-view-raw-diff-file-mode"
 (interactive)
-(re-search-forward "^\\([0-9]+\\).*$" nil t)
+(forward-line 1)
+(beginning-of-line)
+(if (re-search-forward "^\\([0-9]+\\).*$" nil t)
+    (beginning-of-line)
+  (forward-line -1)
+  )
 )
 
 (defun 7zr-view-raw-diff_prev_change_hunk ()
-(re-search-backward "^\\([0-9]+\\).*$" nil t)
+"This function is called from a key binding of 7zr-view-raw-diff-file-mode"
 (interactive)
+(re-search-backward "^\\([0-9]+\\).*$" nil t)
 )
 
 (defun 7zr-summary-view-raw-diff-file ()
-"View the raw diff file for selected revision number"
+"View the raw diff file for selected revision number.
+This function is called from a key binding of 7zr-summary-mode, as well as 7zr-view-mode"
 (interactive)
   (beginning-of-line)
   (cond ((looking-at 7zr-original-version)
@@ -1061,7 +1081,7 @@ what format will be outputted."
 
 (provide '7zr-view-raw-diff-file-mode)
 
-;;;;;; 7zr-view-raw-diff-mode ends
+;;;;;; 7zr-view-raw-diff-mode.el ends
 
 ;;;;;; 7z-revisions.el begins ---- ----------------------------------
 
@@ -1179,7 +1199,6 @@ See help of `format-time-string' for possible replacements")
 
 
 
-
 (defun 7zr-examine-archive ()
   " find 7zr-original-version and create a buffer 7zr-revisions-tmp-buffer with names of patches, and discard any filenames that arent numbers per number-or-marker-p, also get 7zr-patch-number"
 (setq 7zr-buffer (buffer-name (current-buffer)))
@@ -1270,6 +1289,71 @@ See help of `format-time-string' for possible replacements")
   )
 
 
+(defun 7zr-goto-line-of-last-revision ()
+  "Jump to the line number relating to the last hunk of the last revision, messaging the datetime when it was saved"
+  (interactive)
+  (setq 7zr-buffer (buffer-name (current-buffer)))
+  (setq 7zr-buffer-filename 7zr-buffer)
+  (setq 7zr-archive-name (concat 7zr-buffer-filename 7zr-archive-extension))  
+  (when (not (file-directory-p 7zr-temp-directory))
+    (make-directory 7zr-temp-directory t))
+  (if (not (file-exists-p 7zr-archive-name))
+      (message (concat "Archive " 7zr-archive-name " has not yet been created yet, neither via 7z-revisions-mode nor by typing M-x 7zr-commit."))
+    
+    (if (eql (string-match "No files to process" (shell-command-to-string (concat "7z e -aoa -o" 7zr-temp-directory " "  7zr-archive-name  " " (shell-quote-argument 7zr-archive-created-by-message)))) nil)
+	(progn
+	  (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-archive-created-by-message))
+	  (setq 7zr-patch-number 1.0)
+	  (setq 7zr-revisions_lastbuffer (current-buffer))
+	  (setq 7zr-revisions_tmpbuffer2 (generate-new-buffer-name (concat "7zr-revisions_with-temp-buffer_of_" 7zr-buffer-filename)))
+	  (get-buffer-create 7zr-revisions_tmpbuffer2)
+
+	  (set-buffer 7zr-revisions_tmpbuffer2)	    
+;	  (switch-to-buffer 7zr-revisions_tmpbuffer2)
+	  (setq 7zr-revisions_with-temp-buffer (current-buffer))    
+	  (save-window-excursion
+	    (call-process "7z" nil t nil "l" 7zr-archive-name)
+	    (goto-char (point-min))
+	    (while (re-search-forward "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\) ..... [ 0-9]+ [ 0-9]+  \\(.*\\)" nil t)
+
+	      (setq 7zname (match-string-no-properties 2))
+	      (beginning-of-line)
+	      (when 
+		  (not (string-match "[a-zA-Z]+" 7zname))   ; else it must be a number to be a patch, and so discard the rest
+		(setq patch (string-to-number 7zname))
+		(when (> patch 7zr-patch-number)            ; if patch is higher it becomes highest
+		  (setq 7zr-datetime (match-string-no-properties 1))
+		  (setq 7zr-patch-number patch)	  
+		  )		    
+		)
+	      (forward-char)   
+	      )  ; while
+	    )
+	  (set-buffer 7zr-revisions_lastbuffer)
+	  (setq 7zr-patch-number-string (number-to-string 7zr-patch-number))
+	  (save-window-excursion
+	    (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-patch-number-string))  
+	    (rename-file (concat 7zr-temp-directory 7zr-patch-number-string) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
+	    )
+	  (find-file (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip))	  
+	  (end-of-buffer)
+	  (re-search-backward "^\\([0-9]+\\).*$" nil t)
+	  (setq 7zr_diff_line_num (7zr-last-integer-in-string (match-string-no-properties 0)))
+	  (kill-buffer 7zr-revisions_tmpbuffer2)
+	  (kill-buffer 7zr-prepend-to-reconstruct_wip)
+	  (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip))
+	  (set-buffer 7zr-revisions_lastbuffer)
+	  (beginning-of-buffer)
+	  (forward-line (1- 7zr_diff_line_num))
+	  (message (concat "modified on " 7zr-datetime))
+	  )  ; progn
+      )
+    )
+  )
+
+
+
+
 ;(let* ((#1=#:v 7zr-revisions_tmpbuffer3))  (with-current-buffer #1#    (set (make-local-variable '7zr-active-document) "hithere")))
 
 (defun 7z-revisions ()
@@ -1317,11 +1401,8 @@ See help of `format-time-string' for possible replacements")
 
 	  (let ((ofile 7zr-archive-name)
 		files file sum col timetuple savepoint reached-minuses patch highest-patch 7zdatetime 7zsize 7zname)
-	    (set-buffer 7zr-revisions_tmpbuffer2)
-	  
-    
-	    (setq 7zr-revisions_with-temp-buffer (current-buffer))
-    
+	    (set-buffer 7zr-revisions_tmpbuffer2)	    
+	    (setq 7zr-revisions_with-temp-buffer (current-buffer))    
 	    (save-window-excursion
 	    (call-process "7z" nil t nil "l" ofile)
 	    (goto-char (point-min))
@@ -1330,7 +1411,6 @@ See help of `format-time-string' for possible replacements")
 ;    (re-search-forward 
  ;   (next-line)
 	    (beginning-of-line)
-
 	    (while (re-search-forward "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\) \\(.....\\) \\([ 0-9]+\\) \\([ 0-9]+\\)  \\(.*\\)" nil t)
 	      (setq 7zdatetime (match-string-no-properties 1))
 	      (setq 7zsize (match-string-no-properties 3))

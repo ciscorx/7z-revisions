@@ -16,6 +16,9 @@ Also, provides word by word differential highlighting.  Also, provides syntax co
  Additionally, the function 7z-revisions can be called
  interactively to view or consolidate past revisions in the
  archive.
+
+ Some useful commands when editing your document:
+     M-x 7zr-goto-line-of-last-revision 
  
  When 7z-revisions is called the following key bindings are enabled:
  Enter = view revision at point, 
