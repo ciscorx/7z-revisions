@@ -26,7 +26,9 @@ Also, provides word by word differential highlighting.  Also, provides syntax co
  c = consolidate region, 
  g = goto date,  
  h = toggle highlight differences,
- 
+ j = view the raw diff file
+ a = view all selected diff files in one buffer 
+
  While viewing individual past revisions:
  q = quit, 
  n = next, 
