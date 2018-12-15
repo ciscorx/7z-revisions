@@ -597,7 +597,7 @@ the patch files to be deleted in the region."
 	(setq from-patch (cond (froms-nearest-ancestor) (t "first")))   ;; if original version is highlighted, then make from-patch "first" instead
 
 	
-	(forward-line 1)
+;;	(forward-line 1)
 	(beginning-of-line)
 	(setq point-from-minus-first-line (point))
 	(forward-line)
@@ -613,7 +613,7 @@ the patch files to be deleted in the region."
 	  )
 	
 	(setq to-patch (match-string-no-properties 1))
-	(forward-line -1)
+;;	(forward-line -1)
 	(setq 7zr-consolidate-line_to (string-to-number (format-mode-line "%l")))
 	(setq point-to-minus-last-line (line-end-position))
 	
@@ -697,12 +697,32 @@ the patch files to be deleted in the region."
 	  (beginning-of-buffer)
 	  (set-buffer-modified-p nil)
 	  (toggle-read-only 1)
-
+	  (when (setq major-mode-of-file (7zr-find-auto-mode))       ;; apply auto-mode 
+	    (funcall (symbol-value 'major-mode-of-file)))
 	  )   ;; progn
       )
     )  ;; let
   )
 
+(defun 7zr-find-auto-mode ()
+  "Finds the mode associated with name of current-buffer by looking it up in the auto-mode-alist"
+  (interactive)
+  (let (extension mode)  
+    (setq extension (concat "." (7zr-what-is-extension-of-filename (buffer-name))))
+    (if (not (string= extension ".'"))
+	(progn
+	  (mapc (lambda (x) ;(debug)
+		  (when (string-match (car x) extension)
+		    (setq mode (cdr x))
+		    )
+		  ) auto-mode-alist)
+	  mode
+	  )
+      ; else
+      nil
+      )
+    )
+  )
 
 (defun 7zr-view_datetime ()
 (interactive)
