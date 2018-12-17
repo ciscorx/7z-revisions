@@ -701,7 +701,7 @@ the patch files to be deleted in the region."
   (interactive)
   (let (extension mode)  
     (setq extension (concat "." (7zr-what-is-extension-of-filename (buffer-name))))
-    (if (not (string= extension ".'"))
+    (if (not (string= extension "."))
 	(progn
 	  (mapc (lambda (x) 
 		  (when (string-match (car x) extension)
