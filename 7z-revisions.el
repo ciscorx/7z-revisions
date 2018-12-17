@@ -462,7 +462,7 @@ the patch files to be deleted in the region."
       (let ((tem to))
 	(setq to from from tem)))
   (let
-      ( (abort_function nil) from-patch to-patch froms-nearest-ancestor end-at-latest-version start-at-original-version 7zr-consolidate-line_from point-from-minus-first-line )
+      ( (abort_function nil) from-patch to-patch froms-nearest-ancestor end-at-latest-version start-at-original-version 7zr-consolidate-line_from point-from-minus-first-line max-patch max-line )
     (setq 7zr-summary-consolidate-string "")
     (setq 7zr-patch-command-called-x-times 0)
     (setq 7zr-summary-consolidate-to-minus-last-patch 0)
@@ -578,24 +578,26 @@ the patch files to be deleted in the region."
       (let ((tem to))
 	(setq to from from tem)))
   (let
-      ( (abort_function nil) from-patch to-patch froms-nearest-ancestor end-at-latest-version  7zr-consolidate-line_from point-from-minus-first-line (diffs_stack ())  )
+      ( (abort_function nil) from-patch to-patch    line_from  point-from-minus-first-line (diffs_stack ()) major-mode-of-file  )
     (setq 7zr-summary-consolidate-string "")
     (setq 7zr-patch-command-called-x-times 0)
     (setq 7zr-summary-consolidate-to-minus-last-patch 0)
-    (setq 7zr-summary-consolidate-from-minus-1 "")
+
     (save-excursion
       (save-restriction
 	(goto-char from)  ; from will actually be 1 up from selected from
 	(beginning-of-line)
-	(setq 7zr-consolidate-line_from (string-to-number (format-mode-line "%l")))
+	(setq line_from (string-to-number (format-mode-line "%l")))
 	
-	(when (eql 7zr-consolidate-line_from 1)
-	    (setq 7zr-consolidate-line_from 2)
-	    )
-	(looking-at "\\([0-9]+\.[0-9]+\\)")
-	(setq froms-nearest-ancestor (match-string-no-properties 1))
-	(setq from-patch (cond (froms-nearest-ancestor) (t "first")))   ;; if original version is highlighted, then make from-patch "first" instead
-
+	(cond ((= line_from 1)
+	       (setq line_from 2)
+	       (setq from-patch "first"))  ;; if original version is highlighted, then make from-patch "first" instead
+	  
+	      ((looking-at "\\([0-9]+\.[0-9]+\\)")
+	       (if (string= (setq from-patch (match-string-no-properties 1)) "" )
+		   (setq abort_function t)))
+	      (t (setq abort_function t))
+	      )	    	    
 	
 ;;	(forward-line 1)
 	(beginning-of-line)
@@ -604,29 +606,18 @@ the patch files to be deleted in the region."
 	
 	(goto-char to)
 	(beginning-of-line)
-	(setq end-at-latest-version nil)
 	
 	(when (not (looking-at "\\([0-9]+\.[0-9]+\\)"))
-	  (setq end-at-latest-version t)
-	  (forward-line -1)
-	  (looking-at "\\([0-9]+\.[0-9]+\\)")
+	  (if (or (= line_from (string-to-number (format-mode-line "%l")))
+		  (= 1         (string-to-number (format-mode-line "%l"))))
+	      (setq abort_function t)  ;; from is at last line
+	    (forward-line -1))    ;; else assume that just end is at last line
 	  )
-	
+	(looking-at "\\([0-9]+\.[0-9]+\\)")		
 	(setq to-patch (match-string-no-properties 1))
 ;;	(forward-line -1)
 	(setq 7zr-consolidate-line_to (string-to-number (format-mode-line "%l")))
 	(setq point-to-minus-last-line (line-end-position))
-	
-	(goto-char (point-max))
-	(beginning-of-line)
-	(forward-line -1)
-	(setq max-line (string-to-number (format-mode-line "%l")))
-	(when (< max-line 3)
-	    (message "Not enough revisions to consolidate.")
-	    (setq abort_function t)
-	    )
-	(looking-at "\\([0-9]+\.[0-9]+\\)")
-	(setq max-patch (match-string-no-properties 1))
 	
 	(narrow-to-region point-from-minus-first-line point-to-minus-last-line)
 	(goto-char (point-min))
@@ -700,7 +691,8 @@ the patch files to be deleted in the region."
 	  (when (setq major-mode-of-file (7zr-find-auto-mode))       ;; apply auto-mode 
 	    (funcall (symbol-value 'major-mode-of-file)))
 	  )   ;; progn
-      )
+      (message "view diffs aborted")
+      ) ;; if
     )  ;; let
   )
 
@@ -711,7 +703,7 @@ the patch files to be deleted in the region."
     (setq extension (concat "." (7zr-what-is-extension-of-filename (buffer-name))))
     (if (not (string= extension ".'"))
 	(progn
-	  (mapc (lambda (x) ;(debug)
+	  (mapc (lambda (x) 
 		  (when (string-match (car x) extension)
 		    (setq mode (cdr x))
 		    )
@@ -1162,7 +1154,7 @@ This function is called from a key binding of 7zr-summary-mode, as well as 7zr-v
 	 (progn
 	   (setq 7zr-view_date (match-string-no-properties 2)) 
 
-	   (message 7zr-view_date)
+
 	   (save-window-excursion
 	     (setq 7zr-summary-rev-at-point (match-string-no-properties 1))
 	     (setq 7zr-pointer-lastviewed_raw_diff_file (concat 7zr-temp-directory 7zr-prepend-to-diff-file 7zr-summary-rev-at-point "_of_" 7zr-original-version))
@@ -1197,7 +1189,8 @@ This function is called from a key binding of 7zr-summary-mode, as well as 7zr-v
 	   (7zr-view-raw-diff-file-mode 1)
 	   (set-buffer-modified-p nil)
 	   (toggle-read-only 1)
-	  
+	   (message 7zr-view_date)
+
 	   ))
 	(t nil)
 	)
@@ -2016,14 +2009,17 @@ STRING is the output line from PROC."
   )
   
 
-
-(defun 7zr-delete-file-if-exists ( file )
-" Delete a file if it exists, and return nil if it doesnt."
-  (if (and
-       (file-exists-p file )
-       (not (string= file 7zr-temp-directory)))
-      (delete-file file)
-    nil
+(defun 7zr-delete-file-if-exists  ( filename )
+  " Delete a filename if it exists, and return nil if it doesnt."
+  (let (filename_trimmed )
+    (setq filename_trimmed (7zr-trim-l (7zr-trim-r filename)))
+    (if (and
+	 (not (string= filename_trimmed ""))
+	 (file-exists-p filename_trimmed )
+	 (not (string= filename_trimmed 7zr-temp-directory)))
+	(delete-file filename_trimmed)
+      nil
+      )
     )
   )
 
@@ -2222,10 +2218,11 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 	    (forward-line 7zr-reconstruct-direction)
 	    (beginning-of-line)
 	    (looking-at "\\([0-9]+\.?[0-9]*\\)")
+	    (setq 7zr-pointer-lastviewed_3rd_last 7zr-pointer-lastviewed_2nd_last)  ; advance lastviewed pointers
 	    (setq 7zr-pointer-lastviewed_2nd_last 7zr-pointer-lastviewed_last)  ; advance lastviewed pointers
 	    (setq 7zr-pointer-lastviewed_last 7zr-pointer-lastviewed)           ;
 	    (setq 7zr-pointer-lastviewed (match-string-no-properties 0))        ;
-	    (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-pointer-lastviewed_2nd_last))
+;	    (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-pointer-lastviewed_3rd_last))
 	    (if (= 7zr-reconstruct-direction -1)  ; up toward ancestors 
 		(progn
 		  (setq 7zr-pointer-lastviewed_nearest_progeny 7zr-pointer-lastviewed_last)
@@ -2246,6 +2243,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 ;;   If we are walking upward we dont want to apply the patch of the one we're on but that of the nearest progeny
 	    (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-reconstruct-patch-to-apply))
 	    (shell-command (concat 7zr-patch-command 7zr-reconstruct-dtag 7zr-temp-directory 7zr-prepend-to-reconstruct_wip " < " 7zr-temp-directory 7zr-reconstruct-patch-to-apply))
+	    (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-reconstruct-patch-to-apply))
 	    (setq 7zr-patch-command-called-x-times (incf 7zr-patch-command-called-x-times))  ;debug
 
 	
