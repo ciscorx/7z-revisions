@@ -1,7 +1,7 @@
 # 7z-revisions
-Emacs app that saves and allows one to view revisions of a single file, via a .7z archive, useful when git is considered over-kill.
+This Emacs app is not really a version control system, but simply an incremental backup system that easily lets you browse and search past saves of a single file, keeping incremental diffs in a .7z archive.   useful when git is considered over-kill.
 Also, provides word by word differential highlighting.  Also, provides syntax coloring when viewing raw diff files.
-
+Compatible with windows and linux.
 
  Commentary:
 
@@ -26,8 +26,9 @@ Also, provides word by word differential highlighting.  Also, provides syntax co
  c = consolidate region, 
  g = goto date,  
  h = toggle highlight differences,
- j = view the raw diff file
+ j = view the raw diff file at point
  a = view all selected diff files in one buffer 
+ # = prompt input of sha1 checksum and search for it
 
  While viewing individual past revisions:
  q = quit, 
@@ -60,6 +61,15 @@ Also, provides word by word differential highlighting.  Also, provides syntax co
    p7zip
    diffutils  ( just the patch and diff commands )
 
+ When running on windows, access to additional dos commands are necessary, such as patch, diff, awk, fciv, and optionally grep.
+   Install diffutils for windows: http://gnuwin32.sourceforge.net/packages/diffutils.htm and then append C:\Program Files\GnuWin32\bin, or whatever directory that happens to contain diff.exe, to the path variable in control panel -> system -> Advanced -> Environment Variables.  Alternatively, you could just throw all the files in c:\windows\system32
+   Install patch.exe for windows:  http://gnuwin32.sourceforge.net/packages/patch.htm then put it in the same directory that contains diff.exe
+   Download awk from http://gnuwin32.sourceforge.net/packages/gawk.htm   
+   Download the sha1sum equivalent, fciv, https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533
+   Download 7zip https://www.7-zip.org/download.html and then put 7z.exe and 7z.dll in windows/system32 directory, or any directory listed in the path environment variable
+   Download grep http://gnuwin32.sourceforge.net/packages/grep.htm (optional) and then follow the same instructions as above 
+
+ 
  Known Bugs:
 
  - File names must contain at least 1 alphabetical character or
@@ -79,4 +89,5 @@ Also, provides word by word differential highlighting.  Also, provides syntax co
  - Words added to beginning of line additionally highlight following
      word green. In some cases highlighting is off by 1 word.
 
-  This program was written using emacs 23.3.1 on ubuntu 12.04.
+  This program was written using emacs 23.3.1 on ubuntu 12.04, but is
+    compatible with windows-xp and probably windows 7
