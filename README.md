@@ -18,8 +18,9 @@ Compatible with windows and linux.
  archive.
 
  Some useful commands when editing your document:
+     M-x 7zr-line-last-changed-on
      M-x 7zr-goto-line-of-last-revision 
- 
+     
  When 7z-revisions is called the following key bindings are enabled:
  Enter = view revision at point, 
  q = quit, 
@@ -28,7 +29,7 @@ Compatible with windows and linux.
  h = toggle highlight differences,
  j = view the raw diff file at point
  a = view all selected diff files in one buffer 
- # = prompt input of sha1 checksum and search for it
+ \# = prompt input of sha1 checksum and search for it
 
  While viewing individual past revisions:
  q = quit, 

@@ -23,6 +23,7 @@
 ;; past revisions in the archive.
 ;; 
 ;; Some useful commands when editing your document:
+;;     M-x 7zr-line-last-changed-on
 ;;     M-x 7zr-goto-line-of-last-revision 
 ;;
 ;; When 7z-revisions is called, the following key bindings take
@@ -86,11 +87,7 @@
 ;;     feature)
 ;; - There's no way to add revision notes.
 ;; - Buffer local variables arent working properly enough to allow for
-;;     two archives to be opened at once.  More precisely, it appears
-;;     that elisp has trouble with using a buffer local variable to
-;;     store a vector; it only seems to store the first element.
-;;     However, elisp seems to have no problem with buffer local
-;;     lists.
+;;     two archives to be opened at once.
 ;; - Words added to beginning of line additionally highlight following
 ;;     word green. In some cases highlighting is off by 1 word.
 ;; 
@@ -134,7 +131,9 @@
 (setq 7zr-summary-reconst-last "")
 (setq 7zr-archive-created-by-message "archive created by 7z-revisions.el")
 ; (defvar 7zr-hasht (make-hash-table :size 20000 :test 'equal))
-(setq 7zr-summary-last-line 0)
+(setq 7zr-summary-last-line 0)  ; line number of revision in the 7z-revisions display, not to be mistaken for the last line number of point in the document ( which would be related to 7zr-view-last-pos or 7zr-view-last-line)
+(setq 7zr-view-last-column 0)
+(setq 7zr-view-last-line 0)  ; line number of point when 7z-revisions is invoked
 (setq 7zr-patch-number 0.0)
 (setq 7zr-revisions_tmpbuffer "7zr_revisions_tmpbuffer")
 (setq 7zr-revisions-examine-tmpbuffer "7zr_revisions_examine_tmpbuffer")
@@ -145,31 +144,31 @@
 (setq 7zr-map-differences_column_pos_last 0) 
 (setq 7zr-revisions_tmpbuffer "")  ;; name of buffer that lists all revisions
 (setq 7zr-revisions_lastbuffer "")  ;; name of the buffer from which 7z-revisions was called
-(setq 7zr-disable-summary-goto-sha1 nil)
+(setq 7zr-disable-summary-goto-sha1 nil)  ;; used for windows compatibility
 (setq 7zr-diff-command "diff -Na")
 (setq 7zr-patch-command "patch -p0")
 (setq 7zr-sha1sum-command-windows "fciv.exe -sha1")
 (setq 7zr-sha1sum-post-command-windows " | more +3 ")
 (setq 7zr-sha1sum-command-linux "sha1sum")
 (setq 7zr-sha1sum-post-command-linux " ")
-(setq 7zr-requirements-failed nil)
+(setq 7zr-mswindows-requirements-failed nil)
 (cond
  ((string-equal system-type "windows-nt") ; Microsoft Windows
   (setq 7zr-temp-directory 7zr-temp-directory-windows-nt)
   (cond ((not (executable-find "patch.exe"))
-	 (setq 7zr-requirements-failed "Need patch.exe from http://gnuwin32.sourceforge.net/packages/patch.htm"))
+	 (setq 7zr-mswindows-requirements-failed "Need patch.exe from http://gnuwin32.sourceforge.net/packages/patch.htm"))
 	((not (executable-find "diff.exe"))
-	 (setq 7zr-requirements-failed "Need diff.exe from http://gnuwin32.sourceforge.net/packages/diffutils.htm"))
+	 (setq 7zr-mswindows-requirements-failed "Need diff.exe from http://gnuwin32.sourceforge.net/packages/diffutils.htm"))
 	((not (executable-find "awk.exe"))
-	 (setq 7zr-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm"))
+	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm"))
 	((not (executable-find "fciv.exe"))
-	 (setq 7zr-requirements-failed "Need fciv.exe for sha1sum https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533"))
+	 (setq 7zr-mswindows-requirements-failed "Need fciv.exe for sha1sum https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533"))
 	((not (executable-find "7z.exe"))
-	 (setq 7zr-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html")))
+	 (setq 7zr-mswindows-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html")))
   (when (not (executable-find "grep.exe"))  ; dont fail if we cant find grep since its only used in one trivial function
     (setq 7zr-disable-summary-goto-sha1 t))
-  (when 7zr-requirements-failed
-    (error 7zr-requirements-failed))
+  (when 7zr-mswindows-requirements-failed
+    (error 7zr-mswindows-requirements-failed))
   (setq 7zr-sha1sum-command 7zr-sha1sum-command-windows)
   (setq 7zr-sha1sum-post-command 7zr-sha1sum-post-command-windows)
   (defun 7zr-awk-cmd-string ( fieldnum )
@@ -892,7 +891,6 @@ the patch files to be deleted in the region."
 
 (defun 7zr-find-auto-mode ()
   "Finds the mode associated with name of current-buffer by looking it up in the auto-mode-alist"
-  (interactive)
   (let (extension mode)  
     (setq extension (concat "." (7zr-what-is-extension-of-filename (buffer-name))))
     (if (not (string= extension "."))
@@ -952,7 +950,6 @@ what format will be outputted."
 
 (defun 7zr-diff-format-defaultp ()
   "Returns t if the variable 7zr-diff-command specifies a default format"
-  (interactive)
   (if (and (not (string-match "u" 7zr-diff-command))
 	   (not (search-match "c" 7zr-diff-command))
 	   (not (search-match "y" 7zr-diff-command))
@@ -968,8 +965,12 @@ what format will be outputted."
 
 (defun 7zr-summary-view-revision ()
   (interactive)
-  " Reconstruct and then view the revision pointed to by (point) in 
-   the 7z-summary buffer and call 7zr-reconstruct-rev-from-patches, unless we are looking at top most or bottom most line, or one up from bottom most line, in which case we'll open the files from this function instead of calling 7z-reconstruct-rev-from-patches."
+  " Reconstruct and then view the revision pointed to by (point)
+   in the 7zr-revisions_tmpbuffer summary buffer and call
+   7zr-reconstruct-rev-from-patches, unless we are looking at top
+   most or bottom most line, or one up from bottom most line, in
+   which case we'll open the files from this function instead of
+   calling 7z-reconstruct-rev-from-patches."
   (beginning-of-line)
   (cond ((looking-at 7zr-original-version)
 	 (progn
@@ -1010,6 +1011,7 @@ what format will be outputted."
 	   (7zr-view-mode)
 	  ;(7zr-summary-reconst-last-del)
 	   (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
+	  (7zr-goto-last-line-column)
 
 	   ))
 
@@ -1034,6 +1036,7 @@ what format will be outputted."
 	 (7zr-view-mode)
 	   ; (7zr-summary-reconst-last-del)
 	  (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
+	  (7zr-goto-last-line-column)
          nil
 	 ))
 
@@ -1044,6 +1047,7 @@ what format will be outputted."
 	   (message 7zr-view_date)
 	   (setq 7zr-summary-rev-at-point (match-string-no-properties 1))
 	   (7zr-reconstruct-rev-from-patches 7zr-summary-rev-at-point)
+	   (7zr-goto-last-line-column)
 	   ))
 	(t nil)
 	)
@@ -1122,6 +1126,7 @@ what format will be outputted."
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-pointer-lastviewed))
+  (7zr-save-last-line-column)
   (kill-buffer)
   (switch-to-buffer 7zr-revisions_tmpbuffer)
   )
@@ -1131,6 +1136,7 @@ what format will be outputted."
   (interactive)
   (let (current_line_num (not_found t) diff_line_num (diff_line_num_highest 0) (diff_line_num_highest_pos 0))
     (setq current_line_num (string-to-number (format-mode-line "%l")))
+    (7zr-save-last-line-column)
     (kill-buffer)
     (set-buffer 7zr-revisions_tmpbuffer)
     (7zr-summary-view-raw-diff-file)
@@ -1152,31 +1158,45 @@ what format will be outputted."
     )
   )
 
+(defun 7zr-save-last-line-column ()
+  (setq 7zr-view-last-line (string-to-number (format-mode-line "%l")))
+  (setq 7zr-view-last-column (current-column))
+)
 
+(defun 7zr-goto-last-line-column ()
+  (7zr-goto-line-column 7zr-view-last-line 7zr-view-last-column)
+)
+
+(defun 7zr-goto-line-column ( line column )
+  (goto-char (point-min))
+  (forward-line (1- line))
+  (if (> (- (line-end-position) (1- (+ column (point)))) 0)
+      (forward-char column)
+    (end-of-line)
+    )
+  )
+
+    
 (defun 7zr-view_next_page ()
   "This function is called from a key binding of 7zr-view-mode"
   (interactive)
-  (setq 7zr-view-last-pos (point))
+  (7zr-save-last-line-column)
   (kill-buffer)
   (set-buffer 7zr-revisions_tmpbuffer)
   (forward-line 1)
   (7zr-summary-view-revision) 
-  (if (<= 7zr-view-last-pos (point-max))
-      (goto-char 7zr-view-last-pos)
-    )
+  (7zr-goto-last-line-column)
   )
 
 (defun 7zr-view_previous_page ()
   "This function is called from a key binding of 7zr-view-mode"
   (interactive)
-  (setq 7zr-view-last-pos (point))
+  (7zr-save-last-line-column)
   (kill-buffer)
   (set-buffer 7zr-revisions_tmpbuffer)
   (forward-line -1)
   (7zr-summary-view-revision) 
-  (if (<= 7zr-view-last-pos (point-max))
-      (goto-char 7zr-view-last-pos)
-    )
+  (7zr-goto-last-line-column)
   )
 
 
@@ -1241,8 +1261,11 @@ what format will be outputted."
 
 
 (defun 7zr-last-integer-in-string ( string )
-  "Return the last integer found in string passed as parameter"
-  (interactive)
+  "Return the last integer found in string passed as parameter,
+and is used to find the line number referenced by a diff file.
+This function is called by
+7zr-view-raw-diff-quit_then_view_revision,
+7zr-summary-view-raw-diff-file, 7zr-goto-line-of-last-revision."
   (let (newstring last_integer_reversed)
     (setq newstring (concat (nreverse (append (vconcat string) nil))))   ;; reverses a string
     (setq last_integer_reversed (replace-regexp-in-string "\\([0-9]*\\).*" "\\1" newstring))
@@ -1258,16 +1281,14 @@ what format will be outputted."
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
 ; (7zr-delete-file-if-exists (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
   (beginning-of-line)
-  (looking-at ".*")
-  (setq 7zr-view-raw-diff_line_num (7zr-last-integer-in-string (match-string-no-properties 0)))
-
-	    
+;;;  (looking-at ".*")  ; uncomment the 3 comment marks before each statement in this function to allow the view raw diffs screen to jump to the view revision line number instead of the 7zr-view-last-line number, in which case the buttons created become redundant
+;;;  (setq 7zr-view-raw-diff_line_num (7zr-last-integer-in-string (match-string-no-properties 0)))   
   (kill-buffer)
   (set-buffer 7zr-revisions_tmpbuffer)
   (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
   (7zr-summary-view-revision)
   (beginning-of-buffer)
-  (forward-line (1- 7zr-view-raw-diff_line_num))
+ ;;; (forward-line (1- 7zr-view-raw-diff_line_num))
   (7zr-view_datetime)
   )
 
@@ -1571,7 +1592,7 @@ See help of `format-time-string' for possible replacements")
 
         (error "Not a valid 7z-revisions.el archive file")
 	)
- ;     (debug)
+
 
     (set-buffer 7zr-revisions-examine-tmpbuffer)
     (goto-char (point-min))
@@ -1724,6 +1745,9 @@ See help of `format-time-string' for possible replacements")
 	(progn
 	  (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-archive-created-by-message))
 	  (setq 7zr-patch-number 1.0)
+;	  (setq 7zr-view-last-column (current-column))
+;	  (setq 7zr-view-last-line (string-to-number (format-mode-line "%l")))
+	  (7zr-save-last-line-column)
 	  (setq 7zr-revisions_lastbuffer (current-buffer))
 	  (setq 7zr-revisions_tmpbuffer (generate-new-buffer-name (concat "7zr-revisions_of_" 7zr-buffer-filename)))
 	  (get-buffer-create 7zr-revisions_tmpbuffer)
@@ -2280,6 +2304,354 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
     )
   )
 
+(defun 7zr-new-linenum-after-diff ( linenum_param diff-file direction )
+  "Returns list, first element of which is the new line number calculated after a number of lines are added above the given linenum_param, or deleted, in the case of a negative number, as would result from patching from the diff-file. The 2nd list element returned is hunk number that resulted in a change to the linenum in question, 0 if unchanged.  The direction parameter is similar to the parameter given to the patch command, e.g. -R for reverse"
+  (interactive)
+  (let (hunknum-that-changed-linenum hunknum n_diffbuffer n_lastbuffer n_diff_list)
+    (setq n_lastbuffer (current-buffer))
+    (save-window-excursion
+      (find-file-read-only diff-file)
+      (setq n_diffbuffer (current-buffer))
+      (set-buffer n_diffbuffer)
+      (goto-char (point-min))
+      (setq n_diff_list '())
+      (setq hunknum 0)
+      (setq hunknum-that-changed-linenum 0)
+      (setq linenum_offset 0)
+    
+      (while (re-search-forward 7zr-match-diff-standard-line nil t)
+      
+	(let* ((a-begin (string-to-number (buffer-substring (match-beginning 1)
+							    (match-end 1))))
+	       (a-end  (let ((b (match-beginning 3))
+			     (e (match-end 3)))
+			 (if b
+			     (string-to-number (buffer-substring b e))
+			   a-begin)))
+	       (diff-type (buffer-substring (match-beginning 4) (match-end 4)))
+	       (b-begin (string-to-number (buffer-substring (match-beginning 5)
+							    (match-end 5))))
+	       (b-end (let ((b (match-beginning 7))
+			    (e (match-end 7)))
+			(if b
+			    (string-to-number (buffer-substring b e))
+			  b-begin)))
+	       )
+	  
+	  (setq hunknum (1+ hunknum))
+      
+      
+	 ;; fix the beginning and end numbers, because diff is somewhat
+	 ;; strange about how it numbers lines
+	 ;;  (if (string-equal diff-type "a")
+	 ;;      (setq b-end (1+ b-end)
+	 ;; 	    a-begin (1+ a-begin)
+	 ;; 	    a-end a-begin)
+	 ;;    (if (string-equal diff-type "d")
+	 ;; 	(setq a-end (1+ a-end)
+	 ;; 	      b-begin (1+ b-begin)
+	 ;; 	      b-end b-begin)
+	 ;; ;; (string-equal diff-type "c")
+	 ;;      (setq a-end (1+ a-end)
+	 ;; 	    b-end (1+ b-end))))
+
+	  (if (string-equal diff-type "a")
+	      (setq a-end a-begin)
+	    (if (string-equal diff-type "d")
+		(setq  b-end b-begin)))
+
+	  (if (and
+	       (>= linenum_param b-begin )
+	       (<= linenum_param b-end ))
+	      (setq hunknum-that-changed-linenum hunknum)
+	  ; else
+	    (when (and (> linenum_param b-end )
+		  (string-match "R" direction))
+	      (setq linenum_offset (- a-end b-end)))
+	    (when (and (> linenum_param a-end )
+		       (not (string-match "R" direction)))   
+	      (setq linenum_offset (- b-end a-end)))	     
+      
+	    ) ; if
+	  ) ; let*
+	) ; while
+	(set-buffer n_lastbuffer)
+	(kill-buffer n_diffbuffer)
+	(list (+ linenum_param linenum_offset) hunknum-that-changed-linenum )
+      ) ;  save-windows-excursion	       
+    ) ; let
+  )
+
+
+(defun DEFUNCT7zr-list-revs ()
+  "returns name of buffer created, which lists the revs"
+  (setq 7zr-patch-number 0.0)
+  
+  (let ((ofile 7zr-archive-name)
+	(7zr-revisions_lastbuffer (current-buffer))
+	(7zr-revisions-list-revs-tmpbuffer (generate-new-buffer-name (concat "7zr-list-revs_of_" 7zr-buffer-filename)))
+        files file sum col timetuple savepoint reached-minuses patch highest-patch 7zr-revisions_with-temp-buffer )
+    (get-buffer-create 7zr-revisions-list-revs-tmpbuffer)
+    (set-buffer 7zr-revisions-list-revs-tmpbuffer)
+    (setq 7zr-revisions_with-temp-buffer (current-buffer))
+
+    (call-process "7z" nil t nil "l" ofile)
+
+    (goto-char (point-min))
+    (if (re-search-forward "^Listing archive:" nil t)
+	(progn
+	  (forward-line 2)
+            ;(setq sum (buffer-substring (point) (point-max)))
+	  (re-search-forward "Name")
+	  (setq col (- (current-column) 4))
+	  (re-search-forward "^-[-]+")
+	  (forward-line 1)
+	  (set-buffer 7zr-revisions_with-temp-buffer)
+	  (while 
+	      (not (looking-at "^-[-]+"))
+	    (set-buffer 7zr-revisions_with-temp-buffer)
+;	      (beginning-of-line)
+;	      (looking-at "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)" )
+;	      (setq timetuple (apply #'encode-time (parse-time-string (match-string 0))))
+	    (beginning-of-line)
+	    (forward-char col)
+	    (setq file (buffer-substring (point)
+					 (progn (forward-line 1)
+						(1- (point)))))
+	    
+	    (if (and (string-starts-with-p file 7zr-buffer-filename-without-extension)
+		     (not (string-match 7zr-archive-created-by-message file)))  
+		(setq 7zr-original-version file)
+	      (when (not (string-match "[a-zA-Z]+" file))   ; else it must be a number and contain no letters to match 		   
+		(progn
+		  (set-buffer 7zr-revisions-list-revs-tmpbuffer)
+		  (insert file)
+		  (newline)
+		  (setq patch (string-to-number file))
+		  (and (> patch 7zr-patch-number)            ; if patch is higher it becomes highest
+		       (setq 7zr-patch-number patch)
+		       
+		       )
+		  )
+		)
+	      )
+	    (set-buffer 7zr-revisions_with-temp-buffer)
+	    
+	    )
+	  )
+      
+      (error "Not a valid 7z-revisions.el archive file")
+      )
+
+
+    (set-buffer 7zr-revisions-list-revs-tmpbuffer)
+    (goto-char (point-min))
+    (goto-char (point-max))
+    (mark-whole-buffer)
+ ;   (sort-numeric-fields)
+    
+    )
+  )
+  
+(defun 7zr-list-revs ( filename )
+  "create a read-only buffer containing list of revisions, returning the newly created buffer, and original version as a string"
+  (let (7zr-patch-number 7zr-original-version 7zr-buffer-filename-without-extension 7zr-buffer-filename-without-extension 7zr-list-revs_lastbuffer 7zr-list-revs_tmpbuffer 7zr-list-revs_tmpbuffer2 (ofile 7zr-archive-name)
+			 files file sum col timetuple savepoint reached-minuses patch highest-patch 7zdatetime 7zsize 7zname)
+    
+    
+    (setq 7zr-buffer-filename-without-extension (7zr-sans-extension filename)) 
+    (setq 7zr-patch-number 1.0)
+    (setq 7zr-list-revs_lastbuffer (current-buffer))
+    (setq 7zr-list-revs_tmpbuffer (generate-new-buffer-name (concat "7zr-list-revs_of_" filename)))
+    (get-buffer-create 7zr-list-revs_tmpbuffer)
+    (setq 7zr-list-revs_tmpbuffer2 (generate-new-buffer-name (concat "7zr-list-revs_with-temp-buffer_of_" filename)))
+    (get-buffer-create 7zr-list-revs_tmpbuffer2)
+					;	  (setf (buffer-local-value '7zr-active-document 7zr-list-revs_tmpbuffer) '7zr-buffer)
+
+	  
+    (set-buffer 7zr-list-revs_tmpbuffer)
+			       ;	  (make-local-variable '7zr-archive-file-name-directory)
+	  ;(setq 7zr-archive-file-name-directory (buffer-local-value '7zr-archive-file-name-directory 7zr-list-revs_original_buffer))
+;(erase-buffer)
+
+    (set-buffer 7zr-list-revs_tmpbuffer2)	    
+    (setq 7zr-list-revs_with-temp-buffer (current-buffer))    
+    (save-window-excursion
+      (call-process "7z" nil t nil "l" ofile)
+      (goto-char (point-min))
+      
+
+      (beginning-of-line)
+      (while (re-search-forward "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\) \\(.....\\) \\([ 0-9]+\\) \\([ 0-9]+\\)  \\(.*\\)" nil t)
+	(setq 7zdatetime (match-string-no-properties 1))
+	(setq 7zsize (match-string-no-properties 3))
+	(setq 7zname (match-string-no-properties 5))
+	(beginning-of-line)
+	
+
+	    
+	(if (and (string-starts-with-p 7zname 7zr-buffer-filename-without-extension)  ; find original version
+		 (not (string= 7zname 7zr-archive-created-by-message))  ; not the archive identifier
+		 )
+	    (progn
+	      (setq 7zr-original-version 7zname)	      
+	      (set-buffer 7zr-list-revs_tmpbuffer)
+	      (insert 7zname)
+	      (insert-tab)
+	      (insert 7zsize)
+	      (insert-tab)
+
+	      (newline)
+	      )
+	  (if (string-starts-with-p 7zname 7zr-prepend-to-latest-revision)  ; find latest revision
+	      (progn
+		(setq 7zr-latest-revision 7zname)
+		(setq 7zr-latest-revision_size 7zsize)
+		(setq 7zr-latest-revision_datetime 7zdatetime)
+		)
+	    (when 
+		(not (string-match "[a-zA-Z]+" 7zname))   ; else it must be a number to be a patch, and so discard the rest
+		    
+		      
+	      (set-buffer 7zr-list-revs_tmpbuffer)
+	      (insert 7zname)
+	      (insert-tab)
+	      (insert 7zsize)
+	      (insert-tab)
+	      (insert 7zdatetime)
+	      (newline)
+		      
+	      (set-buffer 7zr-list-revs_with-temp-buffer)
+	      (setq patch (string-to-number 7zname))
+	      (when (> patch 7zr-patch-number)            ; if patch is higher it becomes highest
+		(setq 7zr-patch-number patch)	  
+		)
+	      
+	      )
+	    
+	    )
+	  )
+	(set-buffer 7zr-list-revs_with-temp-buffer)
+	
+	(forward-char)
+	)           ; while
+      )	    
+    (set-buffer 7zr-list-revs_tmpbuffer)
+    (goto-char (point-min))
+    (when (and 
+	   (re-search-forward 7zr-original-version nil t)
+	   (not (string= (format-mode-line "%l") "1")))
+      (beginning-of-line)
+      (let ((tmpbegin (point)) tmpend tmpsubstring)
+	(forward-line 1)
+	(setq tmpend (point))
+	(setq tmpsubstring (buffer-substring-no-properties tmpbegin tmpend))
+	(delete-region tmpbegin tmpend)
+	(goto-char (point-min))
+	(insert tmpsubstring)
+	)
+      )
+    (goto-char (point-max))
+    (setq 7zr-list-revs_tmpbuffer_lines (line-number-at-pos))
+    (insert 7zr-latest-revision)
+    (insert-tab)
+    (insert 7zr-latest-revision_size)
+    (insert-tab)
+    (insert 7zr-latest-revision_datetime)
+  
+    (when (> 7zr-patch-number 1)
+      (7zr-summary-sort-1))
+    (goto-char (point-min))
+    (toggle-read-only 1)
+    (set-buffer-modified-p nil)
+    (kill-buffer 7zr-list-revs_with-temp-buffer)
+    (end-of-buffer)
+    (forward-line -1)
+    (beginning-of-line)
+    (set-buffer 7zr-list-revs_lastbuffer)
+    (list 7zr-original-version  7zr-list-revs_tmpbuffer) ; returns a string and a buffer
+    ) ;let  
+  )               ; 7zr-list-revs
+
+  
+
+(defun 7zr-line-last-changed-on ()
+  "find the datetime of the last time that the current line had been changed."
+  (interactive)
+  (let ( find-archive-name (linenum (string-to-number (format-mode-line "%l"))) linenum_obj hunk_that_changed_line list-revs_obj revs-buffer rev rev-point pointer current-patch (saved-point-pos (point)) hash-of-file hash-from-table datetime_string 7zr-lastbuffer 7zr-buffer-file-name return_message)
+
+
+    (setq find-archive-name (concat (file-name-nondirectory (buffer-file-name (current-buffer))) 7zr-archive-extension))
+    (when (not (file-directory-p 7zr-temp-directory))
+      (make-directory 7zr-temp-directory t))
+    (save-window-excursion
+      (if (not (file-exists-p find-archive-name))
+	  (message (concat "Archive " find-archive-name " has not yet been created yet, neither via 7z-revisions-mode nor by typing M-x 7zr-commit."))
+	
+	(if (string-match "No files to process" (shell-command-to-string (concat "7z e -aoa -o" 7zr-temp-directory " "  find-archive-name  " " (shell-quote-argument 7zr-archive-created-by-message))))
+	    (error "Not a valid 7z-revisions.el archive file")
+	; else
+
+	  (setq 7zr-buffer (buffer-name (current-buffer)))
+	  (setq 7zr-lastbuffer (current-buffer))
+	  (setq 7zr-archive-name (concat 7zr-buffer 7zr-archive-extension))  
+	  (if  (not (setq list-revs_obj (7zr-list-revs 7zr-buffer)))
+	      (error "cannot get revisions list")
+	    ; else
+	    (setq revs-buffer (nth 1 list-revs_obj))
+	    (set-buffer revs-buffer)
+	    (setq 7zr-original-version (car list-revs_obj))
+	    
+	    (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-prepend-to-latest-revision 7zr-original-version)) 
+	    (setq line_not_changed t)
+	    (setq hunk_that_changed_line 0)
+
+	    (while line_not_changed
+	      (debug)
+	      (if  	  (looking-at "\\([0-9]+\.[0-9]+\\)")
+		  (progn
+		    (setq current-patch (match-string-no-properties 1))
+		    (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " "  7zr-archive-name " " current-patch))
+		    (setq diff-file  (concat 7zr-temp-directory current-patch))
+
+		    (setq linenum_obj (7zr-new-linenum-after-diff linenum diff-file "R"))
+
+		    (if (> (setq hunk_that_changed_line (nth 1 linenum_obj)) 0)
+			(progn 
+			  (setq line_not_changed nil)
+			  (if (looking-at "[0-9]+\.[0-9]+[ \t]+[0-9]+[ \t]+\\([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\\)")
+			      (progn
+				(setq datetime_string (match-string-no-properties 1))
+				(setq return_message (concat "from rev " current-patch " last changed on " datetime_string))
+				) ; progn
+			    ; else
+			    (error "not suppose to happen")
+			    )
+			  ) ; progn
+		    ; else
+		      (setq linenum (car linenum_obj))
+		      (forward-line -1)
+		    ;;;  (7zr-delete-file-if-exists (concat 7zr-temp-directory current-patch ))
+		      ) ; if changed
+		 
+		    )  ; progn
+	    ; else we are at top of list and line may  not have changed, but we'll say it did just to exit this loop, as hunk_that_changed_line of 0 is what will indicate that the line didnt change.
+		(setq line_not_changed nil)
+		(setq return_message "line didnt change")
+		) ; if looking at a rev
+	      )  ; while		
+	    ) ; if cannot get revisions list
+	  ) ; if not  a valid archive 
+	) ; if archive doesnt exist
+      ) ; windows excursion
+
+    (set-buffer 7zr-lastbuffer)
+    (kill-buffer revs-buffer)
+    (message return_message) 
+    ) ; let 
+  )
+
+
 
 (defun 7zr-reconstruct-rev-from-patches (rev)
   "This function is called from 7zr-summary-view-revision, after running
@@ -2382,7 +2754,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 		(shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-prepend-to-latest-revision 7zr-original-version))  
 		(rename-file (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
 		)
-	      )
+	      ) ; if line number is upper half vs lower half
     ; else  we are using a previous rev thats still in the temp directory and already set up
 	  (goto-line 7zr-summary-last-line) 
 	  )
@@ -2425,9 +2797,11 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 		    (debug))  ; rare bug
 
        
-;;   If we are walking upward we dont want to apply the patch of the one we're on but that of the nearest progeny
+;;   If we have walked upward then we dont want to apply the patch of the number we're on but that of the nearest progeny  (actually, and in other words: if we are in the process of a going upward toward ancestors we want to apply the patch of the number we're currently on, and if going down apply patch of nearest progeny)
 	    (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-reconstruct-patch-to-apply))
 	    (shell-command (concat 7zr-patch-command 7zr-reconstruct-dtag 7zr-temp-directory 7zr-prepend-to-reconstruct_wip " < " 7zr-temp-directory 7zr-reconstruct-patch-to-apply))
+
+	    (setq 7zr-view-last-line (car (7zr-new-linenum-after-diff 7zr-view-last-line (concat 7zr-temp-directory 7zr-reconstruct-patch-to-apply) 7zr-reconstruct-dtag)))
 	    (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-reconstruct-patch-to-apply))
 ;	    (setq 7zr-patch-command-called-x-times (incf 7zr-patch-command-called-x-times))  ;debug
 
@@ -2678,6 +3052,8 @@ reviewing revisions"
 	   (b-line_pos [])
 	   (a-words [])
 	   (b-words [])
+	   (b-begin-saved b-begin)
+	   (a-begin-saved a-begin)
 	   a-offset-points b-offset-points a-begin-pt a-end-pt b-begin-pt b-end-pt
 	   c-begin c-end c-begin-pt c-end-pt column_current column_last difference-ranges)
       
@@ -2700,6 +3076,11 @@ reviewing revisions"
       (setq a-num_lines (- a-end a-begin)
 	    b-num_lines (- b-end b-begin))
 
+   ;; try this and see what happens
+      (if (string-equal diff-type "a")
+	  (setq a-end a-begin-saved)
+	(if (string-equal diff-type "d")
+	    (setq  b-end b-begin-saved)))
 
       (dotimes (line a-num_lines line)
 	(forward-line)
@@ -2797,7 +3178,7 @@ Used by 7zr-longest-common-word-subsequence-difference-ranges"
 	      
 	      (setq m-array (make-vector *i* []))
 	      (dotimes (i *i*)
-		(setf (aref m-array i) (make-vector *j* init_ele)))
+		(aset m-array i (make-vector *j* init_ele)))
 	      m-array
 	      )
 	    )
@@ -2815,9 +3196,9 @@ Used by 7zr-longest-common-word-subsequence-difference-ranges"
 		 (dotimes (i *i*)
 		   (setq m-array2 (make-vector *j* []))
 		   (dotimes (j *j*)
-		     (setf (aref m-array2 j) (make-vector *k* init_ele))
+		     (aset m-array2 j (make-vector *k* init_ele))
 		     )		   
-		   (setf (aref m-array i) m-array2)
+		   (aset m-array i m-array2)
 		 )
 		 
 		 m-array
@@ -2850,10 +3231,10 @@ Used by 7zr-longest-common-word-subsequence-difference-ranges"
 (defun 7zr-setf2 ( array i j &optional x )
   "Used by longest-common-word-subsequence"
   (if (equal x nil)
-      (setf (aref array i) j)
+      (aset array i j)
     (progn
       (setq asub2 (aref array i ))
-      (setf (aref asub2 j ) x)
+      (aset asub2 j x)
       )
     )
   )
