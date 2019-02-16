@@ -6,20 +6,20 @@ Compatible with windows and linux, and probably mac.
 
  7z-revisions-mode is an Emacs minor mode that saves the current
  buffer to a 7-zip archive of the same name, whenever a save-buffer
- command is issued.  A timestamp in the form of MMDDYY-HHMMSS is
+ command is issued.  A time-stamp in the form of MMDDYY-HHMMSS is
  appended to the archived file.  If the .7z archive file already
  exists then it incrementally saves the latest revision by adding a
  new patch to the archive.  The .7z extension can be altered to
- something else, such as .8z, by setting the global variable
- 7zr-archive-extension to ".8z".  Additionally, the function
+ something else, such as .8z for example, by setting the global
+ variable 7zr-archive-extension to ".8z".  Additionally, the function
  7z-revisions can be called interactively to view or consolidate past
- revisions in the archive, provideing word by word differential
+ revisions in the archive, providing word by word differential
  highlighting.  In addition, syntax coloring is applied when viewing
  raw diff files.<br/>
 
-
+## Commands
  Some useful commands when editing your document:<br/>
-     **M-x** **7zr-line-last-changed-on** = displays the datetime and revision number of last time the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions which is taken into account)<br/>
+     **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions which is taken into account)<br/>
      **M-x** **7zr-goto-line-of-last-revision** = is exactly that<br/> 
      
  When **M-x** **7z-revisions** is started, the following key bindings are enabled:<br/>
@@ -63,6 +63,7 @@ Compatible with windows and linux, and probably mac.
    p7zip,<br/>
    diffutils  ( just the patch and diff commands )
 
+### On Windows
  When running on windows, access to additional dos commands becomes necessary, such as patch, diff, awk, fciv, and optionally grep.<br/>
    Install diffutils for windows: http://gnuwin32.sourceforge.net/packages/diffutils.htm and then append C:\Program Files\GnuWin32\bin, or whatever directory that happens to contain diff.exe, to the path variable in control panel -> system -> Advanced -> Environment Variables.  Alternatively, you could just throw all the files in c:\windows\system32<br/>
    Install patch.exe for windows:  http://gnuwin32.sourceforge.net/packages/patch.htm then put it in the same directory that contains diff.exe<br/>
@@ -91,5 +92,5 @@ Compatible with windows and linux, and probably mac.
  - Words added to beginning of line additionally highlight following
      word green. In some cases highlighting is off by 1 word.
 
-  This program was written using emacs 23.3.1 on ubuntu 12.04, but is
+  This program was written using emacs 23.2.1 on ubuntu 12.04, but is
     compatible with windows-xp and probably windows 7
