@@ -20,8 +20,8 @@ Compatible with windows and linux, and probably mac.
 ## Commands
  Some useful commands when editing your document:<br/>
      **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions which is taken into account)<br/>
-     **M-x** **7zr-goto-line-of-last-revision** = is exactly that<br/>
-     **M-x** **7z-revisions-mode** = updates archive every time the buffer is saved<br/>
+     **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associatd with the first hunk of the last changes<br/>
+     **M-x** **7z-revisions-mode** = updates archive every time the buffer is saved, by automatically calling **M-x** **7zr-commit**<br/>
      **M-x** **7z-revisions** = starts the 7z-revisions buffer to view past revisions
      
  When **M-x** **7z-revisions** is started, the following key bindings are in effect:<br/>
