@@ -20,9 +20,11 @@ Compatible with windows and linux, and probably mac.
 ## Commands
  Some useful commands when editing your document:<br/>
      **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions which is taken into account)<br/>
-     **M-x** **7zr-goto-line-of-last-revision** = is exactly that<br/> 
+     **M-x** **7zr-goto-line-of-last-revision** = is exactly that<br/>
+     **M-x** **7z-revisions-mode** = updates archive every time the buffer is saved
+     **M-x** **7z-revisions** = starts the 7z-revisions buffer to view past revisions
      
- When **M-x** **7z-revisions** is started, the following key bindings are enabled:<br/>
+ When **M-x** **7z-revisions** is started, the following key bindings are in effect:<br/>
  Enter = view revision at point,<br/> 
  q = quit 7z-revisions,<br/>
  c = consolidate region,<br/>
@@ -40,7 +42,7 @@ Compatible with windows and linux, and probably mac.
 
  When highlight changes is enabled in view mode:<br/>
  d = jump to next difference/change,<br/> 
- e = jump to previous change,<br/>
+ e = jump to previous change
 
  While viewing a raw diff file:<br/>
  q = quit to 7z-revisions buffer,<br/>
