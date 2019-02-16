@@ -1,52 +1,53 @@
 # 7z-revisions
-This Emacs app is not really a version control system, but simply an incremental backup system that easily lets you browse and search past saves of a single file, keeping incremental diffs in a .7z archive.   useful when git is considered over-kill.
-Also, provides word by word differential highlighting.  Also, provides syntax coloring when viewing raw diff files.
-Compatible with windows and linux.
+This Emacs app is not really a version control system, but simply an incremental backup system that easily lets one browse and search past saves of a single file, keeping incremental diffs in a .7z archive.   Useful when git is considered over-kill.<br/>
+Compatible with windows and linux, and probably mac.
 
- Commentary:
+## Commentary:
 
  7z-revisions-mode is an Emacs minor mode that saves the current
- buffer to a 7-zip archive of the same name, whenever a
- save-buffer command is issued.  A timestamp in the form of
- MMDDYY-HHMMSS is appended to the archived file.  If the .7z
- archive file already exists then it incrementally saves the
- latest revision by adding a new patch to the archive.  The .7z
- extension can be altered to something else, such as .8z, by
- setting the global variable 7zr-archive-extension to ".8z".
- Additionally, the function 7z-revisions can be called
- interactively to view or consolidate past revisions in the
- archive.
+ buffer to a 7-zip archive of the same name, whenever a save-buffer
+ command is issued.  A timestamp in the form of MMDDYY-HHMMSS is
+ appended to the archived file.  If the .7z archive file already
+ exists then it incrementally saves the latest revision by adding a
+ new patch to the archive.  The .7z extension can be altered to
+ something else, such as .8z, by setting the global variable
+ 7zr-archive-extension to ".8z".  Additionally, the function
+ 7z-revisions can be called interactively to view or consolidate past
+ revisions in the archive, provideing word by word differential
+ highlighting.  In addition, syntax coloring is applied when viewing
+ raw diff files.<br/>
 
- Some useful commands when editing your document:
-     M-x 7zr-line-last-changed-on
-     M-x 7zr-goto-line-of-last-revision 
+
+ Some useful commands when editing your document:<br/>
+     **M-x** **7zr-line-last-changed-on** = displays the datetime and revision number of last time the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions which is taken into account)<br/>
+     **M-x** **7zr-goto-line-of-last-revision** = is exactly that<br/> 
      
- When 7z-revisions is called the following key bindings are enabled:
- Enter = view revision at point, 
- q = quit, 
- c = consolidate region, 
- g = goto date,  
- h = toggle highlight differences,
- j = view the raw diff file at point
- a = view all selected diff files in one buffer 
+ When **M-x** **7z-revisions** is started, the following key bindings are enabled:<br/>
+ Enter = view revision at point,<br/> 
+ q = quit 7z-revisions,<br/>
+ c = consolidate region,<br/>
+ g = goto date,<br/>
+ h = toggle highlight differences,<br/>
+ j = view the raw diff file at point,<br/>
+ a = view all selected diff files in one buffer,<br/>
  \# = prompt input of sha1 checksum and search for it
 
- While viewing individual past revisions:
- q = quit, 
- n = next, 
- p = previous,  
+ While viewing individual past revisions:<br/>
+ q = quit to 7z-revisions buffer,<br/>
+ n = next,<br/>
+ p = previous,<br/> 
  j = view the raw diff file
 
- When highlight changes is enabled in view mode:
- d = jump to next difference/change, 
- e = jump to previous change,
+ When highlight changes is enabled in view mode:<br/>
+ d = jump to next difference/change,<br/> 
+ e = jump to previous change,<br/>
 
- While viewing a raw diff file:
- q = quit,
- n = next,
- p = previous,
- r = switch to revision view
- d = jump to next change hunk
+ While viewing a raw diff file:<br/>
+ q = quit to 7z-revisions buffer,<br/>
+ n = next,<br/>
+ p = previous,<br/>
+ r = switch to revision view,<br/>
+ d = jump to next change hunk,<br/>
  e = jump to previous change hunk
 
  There are also some functions in the menu which provide for
@@ -57,21 +58,21 @@ Compatible with windows and linux.
  revision, theres a menu option to goto the revision pertaining to the
  hash.
 
- Required features:
-   hl-line+.el
-   p7zip
+## Required features:<br/>
+   hl-line+.el,<br/>
+   p7zip,<br/>
    diffutils  ( just the patch and diff commands )
 
- When running on windows, access to additional dos commands are necessary, such as patch, diff, awk, fciv, and optionally grep.
-   Install diffutils for windows: http://gnuwin32.sourceforge.net/packages/diffutils.htm and then append C:\Program Files\GnuWin32\bin, or whatever directory that happens to contain diff.exe, to the path variable in control panel -> system -> Advanced -> Environment Variables.  Alternatively, you could just throw all the files in c:\windows\system32
-   Install patch.exe for windows:  http://gnuwin32.sourceforge.net/packages/patch.htm then put it in the same directory that contains diff.exe
-   Download awk from http://gnuwin32.sourceforge.net/packages/gawk.htm   
-   Download the sha1sum equivalent, fciv, https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533
-   Download 7zip https://www.7-zip.org/download.html and then put 7z.exe and 7z.dll in windows/system32 directory, or any directory listed in the path environment variable
-   Download grep http://gnuwin32.sourceforge.net/packages/grep.htm (optional) and then follow the same instructions as above 
+ When running on windows, access to additional dos commands becomes necessary, such as patch, diff, awk, fciv, and optionally grep.<br/>
+   Install diffutils for windows: http://gnuwin32.sourceforge.net/packages/diffutils.htm and then append C:\Program Files\GnuWin32\bin, or whatever directory that happens to contain diff.exe, to the path variable in control panel -> system -> Advanced -> Environment Variables.  Alternatively, you could just throw all the files in c:\windows\system32<br/>
+   Install patch.exe for windows:  http://gnuwin32.sourceforge.net/packages/patch.htm then put it in the same directory that contains diff.exe<br/>
+   Download awk from http://gnuwin32.sourceforge.net/packages/gawk.htm<br/>   
+   Download the sha1sum equivalent, fciv, https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533<br/>
+   Download 7zip https://www.7-zip.org/download.html and then put 7z.exe and 7z.dll in windows/system32 directory, or any directory listed in the path environment variable<br/>
+   Download grep http://gnuwin32.sourceforge.net/packages/grep.htm (optional) and then follow the same instructions as above
 
  
- Known Bugs:
+## Known Bugs:
 
  - File names must contain at least 1 alphabetical character or
  underscore or hyphen, and in this regard, cannot take the form of a
