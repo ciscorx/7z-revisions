@@ -2607,7 +2607,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 	    (setq hunk_that_changed_line 0)
 
 	    (while line_not_changed
-	      (debug)
+
 	      (if  	  (looking-at "\\([0-9]+\.[0-9]+\\)")
 		  (progn
 		    (setq current-patch (match-string-no-properties 1))
@@ -3567,8 +3567,7 @@ highlighting changes when reviewing revisions"
 
 
 (defun 7zr-remove-colons-from-timestamps-in-filenames-in-archive ()
-  "call this to remove colons from the timestamps in the filenames of archived files, in order to make them compliant with microsoft windows.  Also edit them out of the hash file.  This only works with newer versions of 7-zip, and wont work for version 9.20, since it doesnt have the rename (rn) option"
-  (interactive)
+  "call this to remove colons from the timestamps in the filenames of archived files, in order to make them compliant with microsoft windows.  Also edit them out of the hash file.  This only works with newer versions of 7-zip, and wont work for version 9.20, since it doesnt have the rename (rn) option.  This function is not interactive, so you'll have to write the following text into your document (7zr-remove-colons-from-timestamps-in-filenames-in-archive) and then press C-x C-e"
   (when (not (file-directory-p 7zr-temp-directory))
     (make-directory 7zr-temp-directory t))
   (save-excursion
