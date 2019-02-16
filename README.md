@@ -66,7 +66,7 @@ Compatible with windows and linux, and probably mac.
  When running on windows, access to additional dos commands becomes necessary, such as patch, diff, awk, fciv, and optionally grep.<br/>
    Install diffutils for windows: http://gnuwin32.sourceforge.net/packages/diffutils.htm and then append C:\Program Files\GnuWin32\bin, or whatever directory that happens to contain diff.exe, to the path variable in control panel -> system -> Advanced -> Environment Variables.  Alternatively, you could just throw all the files in c:\windows\system32<br/>
    Install patch.exe for windows:  http://gnuwin32.sourceforge.net/packages/patch.htm then put it in the same directory that contains diff.exe<br/>
-   Download awk from http://gnuwin32.sourceforge.net/packages/gawk.htm<br/>   
+   Download awk from http://gnuwin32.sourceforge.net/packages/gawk.htm<br/>
    Download the sha1sum equivalent, fciv, https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533<br/>
    Download 7zip https://www.7-zip.org/download.html and then put 7z.exe and 7z.dll in windows/system32 directory, or any directory listed in the path environment variable<br/>
    Download grep http://gnuwin32.sourceforge.net/packages/grep.htm (optional) and then follow the same instructions as above
