@@ -18,33 +18,33 @@ Compatible with windows and linux, and probably mac.
  raw diff files.<br/>
 
 ## Commands
- Some useful commands when editing your document:<br/>
-     **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions which is taken into account)<br/>
+### Some useful commands when editing your document:<br/>
+     **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
      **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associated with the first hunk of the last changes<br/>
-     **M-x** **7z-revisions-mode** = updates archive every time the buffer is saved, by automatically calling **M-x** **7zr-commit**<br/>
-     **M-x** **7z-revisions** = starts the 7z-revisions buffer to view past revisions
+     **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
+     **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions
      
- When **M-x** **7z-revisions** is started, the following key bindings take effect:<br/>
+### When **M-x** **7z-revisions** is started, the following key bindings take effect:<br/>
  Enter = view revision at point,<br/> 
  q = quit 7z-revisions,<br/>
  c = consolidate region,<br/>
- g = goto date,<br/>
+ g = prompt for entering a date, or date-time, and then goto that date-time inputted,<br/>
  h = toggle highlight differences,<br/>
  j = view the raw diff file at point,<br/>
  a = view all selected diff files in one buffer,<br/>
  \# = prompt input of sha1 checksum and search for it
 
- While viewing individual past revisions:<br/>
+### While viewing individual past revisions:<br/>
  q = quit to 7z-revisions buffer,<br/>
  n = next revision,<br/>
  p = previous revision,<br/> 
  j = view the raw diff file
 
- When highlight changes is enabled in view mode:<br/>
+### When highlight changes is enabled in view mode:<br/>
  d = jump to next difference/change,<br/> 
  e = jump to previous change
 
- While viewing a raw diff file:<br/>
+### While viewing a raw diff file:<br/>
  q = quit to 7z-revisions buffer,<br/>
  n = next diff file,<br/>
  p = previous diff file,<br/>
@@ -66,7 +66,7 @@ Compatible with windows and linux, and probably mac.
    diffutils  ( just the patch and diff commands )
 
 ### On Windows
- When running on windows, access to additional dos commands becomes necessary, such as patch, diff, awk, fciv, and optionally grep.<br/>
+ When running on Microsoft Windows, access to additional dos commands becomes necessary, such as patch, diff, awk, fciv, and optionally grep.<br/>
    Install diffutils for windows: http://gnuwin32.sourceforge.net/packages/diffutils.htm and then append C:\Program Files\GnuWin32\bin, or whatever directory that happens to contain diff.exe, to the path variable in control panel -> system -> Advanced -> Environment Variables.  Alternatively, you could just throw all the files in c:\windows\system32<br/>
    Install patch.exe for windows:  http://gnuwin32.sourceforge.net/packages/patch.htm then put it in the same directory that contains diff.exe<br/>
    Download awk from http://gnuwin32.sourceforge.net/packages/gawk.htm<br/>
@@ -83,12 +83,12 @@ Compatible with windows and linux, and probably mac.
  - Each archive can only track one file.  (let's call this a
  feature)
  - There's no way to add commit or revision notes.
-- buffer local variables arent working properly enough to allow for
-     two archives to be opened at once.  It appears that elisp has
-     trouble with using a buffer local variable to store a vector; it
-     only seems to store the first element.  However, elisp seems to
-     have no problem with buffer local lists.
-- When viewing some middle revision, followed by the original
+ - buffer local variables arent working properly enough in emacs 23.2.1
+     to allow for two archives to be opened at once.  It appears that
+     elisp has trouble with using a buffer local variable to store a
+     vector; it only seems to store the first element.  However, elisp
+     seems to have no problem with storing buffer local lists.    
+ - When viewing some middle revision, followed by the original
      version, then followed by the first revision, it hangs
      indefinitely, where upon the C-g key must be invoked.
  - Words added to beginning of line additionally highlight following

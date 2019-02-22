@@ -1618,37 +1618,6 @@ See help of `format-time-string' for possible replacements")
     )
   )
 
-(defun 7zr-refresh-all-bookmarks ()
-   "For every bookmark in the bookmark-default-file that points to a file that has an associated 7z-revisions.el .7z archive, update the bookmark to point to the correct location indicated by its associated context.  This becomes useful as the script file grows.  "
-  ;; to do this, first verify whether there is an associated .7z
-  ;; archive, then whether the context around the bookmark pointer is
-  ;; accurate.  If not, we use 7z-summary-view, going backward
-  ;; revision by revision, starting at latest version, until the
-  ;; context around the bookmark pointer matches that in the
-  ;; bookmark-default-file for each respective bookmark.  Then we
-  ;; count how many lines have been added to the document before each
-  ;; pointer, from each diff starting with the revision in question,
-  ;; and ending with the latest diff, and add that to the original
-  ;; pointer to updated its location, but first ofcourse verifiying
-  ;; whether the new pointer matches the specified context.
-
-   (interactive)
-   (let ((last_buffer (current-buffer))
-	 bookmark_buffer)
-     (save-excursion
-       (save-window-excursion
-	 (find-file-read-only bookmark-default-file)
-	 (setq bookmark_buffer (current-buffer))
-	 (while (re-search-forward "^(?(\"\\(.*\\)\"\n (filename . \"\\(.*\\)\")\n (front-context-string . \"\\(.*\\)\")\n (rear-context-string . \"\\(.*\\)\")\n (position . \\([0-9]+\\)))" nil t)
-	   (setq bkmrk_ptr_name (match-string-no-properties 1))
-	   (setq bkmrk_ptr_file (match-string-no-properties 2))
-	   (setq bkmrk_ptr_front-context  (match-string-no-properties 3))
-	   (setq bkmrk_ptr_rear-context  (match-string-no-properties 4))	   
-	   (setq bkmrk_ptr_pos  (string-to-number (match-string-no-properties 5)))	       
-;
-
-	   ))))
-   )
 
 (defun 7zr-goto-line-of-last-revision ()
   "Jump to the line number relating to the last hunk of the last revision, messaging the datetime when it was saved"
@@ -2312,13 +2281,12 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
     (save-window-excursion
       (find-file-read-only diff-file)
       (setq n_diffbuffer (current-buffer))
-      (set-buffer n_diffbuffer)
       (goto-char (point-min))
       (setq n_diff_list '())
       (setq hunknum 0)
       (setq hunknum-that-changed-linenum 0)
       (setq linenum_offset 0)
-    
+      (setq a-end-saved 0 b-end-saved 0) ;debug
       (while (re-search-forward 7zr-match-diff-standard-line nil t)
       
 	(let* ((a-begin (string-to-number (buffer-substring (match-beginning 1)
@@ -2339,7 +2307,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 	       )
 	  
 	  (setq hunknum (1+ hunknum))
-      
+
       
 	 ;; fix the beginning and end numbers, because diff is somewhat
 	 ;; strange about how it numbers lines
@@ -2355,29 +2323,32 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 	 ;;      (setq a-end (1+ a-end)
 	 ;; 	    b-end (1+ b-end))))
 
-	  (if (string-equal diff-type "a")
-	      (setq a-end a-begin)
-	    (if (string-equal diff-type "d")
-		(setq  b-end b-begin)))
+	  ;; try this debug
+	  ;; (if (string-equal diff-type "a")
+	  ;;     (setq a-end a-begin)
+	  ;;   (if (string-equal diff-type "d")
+	  ;;  	(setq  b-end b-begin)))
+	  (if (string-match "R" direction)
+	      (if (and
+		   (>= linenum_param b-begin )
+		   (<= linenum_param b-end ))
+		  (setq hunknum-that-changed-linenum hunknum)
+	       ; else
+		(setq a-end-saved a-end b-end-saved b-end) ;debug
+		(when (> linenum_param b-end )
+		  (setq linenum_offset (- a-end b-end)))
+		)
+	    ; else
+	    (when (> linenum_param a-end )
 
-	  (if (and
-	       (>= linenum_param b-begin )
-	       (<= linenum_param b-end ))
-	      (setq hunknum-that-changed-linenum hunknum)
-	  ; else
-	    (when (and (> linenum_param b-end )
-		  (string-match "R" direction))
-	      (setq linenum_offset (- a-end b-end)))
-	    (when (and (> linenum_param a-end )
-		       (not (string-match "R" direction)))   
-	      (setq linenum_offset (- b-end a-end)))	     
-      
-	    ) ; if
+	      (setq linenum_offset (- b-end a-end)))
+	    )
+	  
 	  ) ; let*
 	) ; while
-	(set-buffer n_lastbuffer)
-	(kill-buffer n_diffbuffer)
-	(list (+ linenum_param linenum_offset) hunknum-that-changed-linenum )
+      (set-buffer n_lastbuffer)
+      (kill-buffer n_diffbuffer)
+      (list (+ linenum_param linenum_offset) hunknum-that-changed-linenum )
       ) ;  save-windows-excursion	       
     ) ; let
   )
@@ -2576,7 +2547,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
   
 
 (defun 7zr-line-last-changed-on ()
-  "find the datetime of the last time that the current line had been changed."
+  "Displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)"
   (interactive)
   (let ( find-archive-name (linenum (string-to-number (format-mode-line "%l"))) linenum_obj hunk_that_changed_line list-revs_obj revs-buffer rev rev-point pointer current-patch (saved-point-pos (point)) hash-of-file hash-from-table datetime_string 7zr-lastbuffer 7zr-buffer-file-name return_message)
 
@@ -2799,6 +2770,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
        
 ;;   If we have walked upward then we dont want to apply the patch of the number we're on but that of the nearest progeny  (actually, and in other words: if we are in the process of a going upward toward ancestors we want to apply the patch of the number we're currently on, and if going down apply patch of nearest progeny)
 	    (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-reconstruct-patch-to-apply))
+
 	    (shell-command (concat 7zr-patch-command 7zr-reconstruct-dtag 7zr-temp-directory 7zr-prepend-to-reconstruct_wip " < " 7zr-temp-directory 7zr-reconstruct-patch-to-apply))
 
 	    (setq 7zr-view-last-line (car (7zr-new-linenum-after-diff 7zr-view-last-line (concat 7zr-temp-directory 7zr-reconstruct-patch-to-apply) 7zr-reconstruct-dtag)))
@@ -3077,10 +3049,10 @@ reviewing revisions"
 	    b-num_lines (- b-end b-begin))
 
    ;; try this and see what happens
-      (if (string-equal diff-type "a")
-	  (setq a-end a-begin-saved)
-	(if (string-equal diff-type "d")
-	    (setq  b-end b-begin-saved)))
+      ;; (if (string-equal diff-type "a")
+      ;; 	  (setq a-end a-begin-saved)
+      ;; 	(if (string-equal diff-type "d")
+      ;; 	    (setq  b-end b-begin-saved)))
 
       (dotimes (line a-num_lines line)
 	(forward-line)
