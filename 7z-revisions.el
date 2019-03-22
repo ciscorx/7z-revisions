@@ -1,6 +1,11 @@
-;; 7z-revisions.el --- To save and review backup revisions using a .7z
-;; archive, providing word by word differential highlighting.  Also,
-;; provides syntax coloring when viewing raw diff files.
+;; 7z-revisions.el --- This Emacs app is not really a version control
+;; system, but simply an incremental backup system that easily lets
+;; one browse and search past saves of a single file, keeping
+;; incremental diffs in a .7z archive.  Provides word by word
+;; differential highlighting.  Also, provides syntax coloring when
+;; viewing raw diff files.  Useful when git may be considered
+;; over-kill.
+;; Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com                                                                    
 ;;
@@ -35,11 +40,15 @@
 ;; While viewing a revision: q = quit, n = next, p = previous.  Also,
 ;;   when highlight changes is enabled, d = jump to next
 ;;   difference/change, e = jump to previous change, j = view the raw
-;;   diff file
+;;   diff file, g = Quit 7z-revisions and then try to goto the line in
+;;   your document corresponding to the last line viewed from
+;;   7z-revisions.
 ;;
-;; While viewing a raw diff file: q = quit, n = next, p = previous,
-;;   r = switch to revision view,  d = jump to next
-;;   change hunk, e = jump to previous change hunk
+;; While viewing a raw diff file: q = quit, n = next, p = previous, r
+;;   = switch to revision view, d = jump to next change hunk, e = jump
+;;   to previous change hunk, g = Quit 7z-revisions and then try to
+;;   goto the line in your document corresponding to the change hunk
+;;   that was at point.
 ;;
 ;;
 ;; There are also some functions in the menu which provide for
@@ -50,7 +59,7 @@
 ;; hashtable stored in the archive and can be search from the menu.
 ;;
 ;; While in dired-mode, the key binding z = dired-7z-revisions, which
-;;   views the 7z-revisions archive at point
+;;   views the 7z-revisions archive at point, comes into effect.
 ;;
 ;; Required features:
 ;;   hl-line+.el
@@ -92,7 +101,7 @@
 ;;     word green. In some cases highlighting is off by 1 word.
 ;; 
 ;;  This program was written using emacs 23.3.1 on ubuntu 12.04, but
-;;     is compatible with windows-xp and probably windows 7
+;;     is compatible with windows-xp and probably windows 7, and likely mac.
 
 ;;; 7zr-summary-mode.el begins ------------------------
 
@@ -124,6 +133,8 @@
 (setq 7zr-prepend-to-diff-file "diff_")
 (setq 7zr-prepend-to-latest-revision "7zr-latest-")
 (setq 7zr-prepend-to-current-version "7zr-current-")   ; not used
+(setq 7zr-prepend-to-notes-file "7zr-notes-")
+(setq 7zr-notes-file-extension ".7zrn") 
 (setq 7zr-prepend-to-hash-file "7zr-sha1-")
 (setq 7zr-prepend-to-rej "7zr-rej-")
 (setq 7zr-construct-slow_last "0")
@@ -147,6 +158,8 @@
 (setq 7zr-disable-summary-goto-sha1 nil)  ;; used for windows compatibility
 (setq 7zr-diff-command "diff -Na")
 (setq 7zr-patch-command "patch -p0")
+(setq 7zr-add-to-archive-command "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on")
+(setq 7zr-buffer "")       ; buffer of active document, before calling 7z-revisions
 (setq 7zr-sha1sum-command-windows "fciv.exe -sha1")
 (setq 7zr-sha1sum-post-command-windows " | more +3 ")
 (setq 7zr-sha1sum-command-linux "sha1sum")
@@ -1207,6 +1220,7 @@ what format will be outputted."
     (define-key map (kbd "p") '7zr-view_previous_page)
     (define-key map (kbd "n") '7zr-view_next_page)
     (define-key map (kbd "t") '7zr-view_datetime)
+    (define-key map (kbd "g") '7zr-view_quit7zr_then_goto_line_viewed)
     (define-key map (kbd "j") '7zr-view-quit_view_diff)
     (define-key map (kbd "q") '7zr-view-quit)
     (define-key map [menu-bar 7zr-view]
@@ -1214,6 +1228,9 @@ what format will be outputted."
     (define-key map [menu-bar 7zr-view quit]
       '(menu-item "Quit View" 7zr-view-quit
                   :help "Quit viewing this revision"))
+    (define-key map [menu-bar 7zr-view quit7zr_goto_line]
+      '(menu-item "Quit 7zr + goto line" 7zr-view_quit7zr_then_goto_line_viewed
+		  :help "Quit 7z-revisions and goto currently viewed line"))
    (define-key map [menu-bar 7zr-view quit_view_diff]
       '(menu-item "View diff file" 7zr-view-quit_view_diff
                   :help "View raw diff file of this revision."))
@@ -1260,6 +1277,15 @@ what format will be outputted."
   )
 
 
+(defun 7zr-view_quit7zr_then_goto_line_viewed ()
+  " Quit 7z-revisions and then try to place point at the line corresponding to the last line viewed from 7z-revisions."
+  (interactive)
+  (7zr-save-last-line-column)
+  (kill-buffer)
+  (set-buffer 7zr-revisions_tmpbuffer)
+  (7zr-view-raw-diff_line_number_change_to_end  7zr-view-last-line )
+  )
+
 (defun 7zr-last-integer-in-string ( string )
   "Return the last integer found in string passed as parameter,
 and is used to find the line number referenced by a diff file.
@@ -1287,9 +1313,41 @@ This function is called by
   (set-buffer 7zr-revisions_tmpbuffer)
   (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
   (7zr-summary-view-revision)
-  (beginning-of-buffer)
+  (goto-line 7zr-summary-last-line)
  ;;; (forward-line (1- 7zr-view-raw-diff_line_num))
   (7zr-view_datetime)
+  )
+
+(defun 7zr-view-raw-diff_line_number_change_to_end ( linenum )
+  "Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions, or the line in your document corresponding to the change hunk that was at point, in the case where you were viewing a raw diff file"
+  (let ((iter 0))
+    (setq 7zr-view-last-line linenum) 
+    (while (and (not (looking-at 7zr-prepend-to-latest-revision))
+		(looking-at "\\([0-9]+\.?[0-9]*\\)[ \t]+[0-9]+[ \t]+\\(.*\\)")
+		)
+      
+      (when (> iter 0)
+	(save-window-excursion
+	  (setq 7zr-view_date (match-string-no-properties 2)) 
+	  (setq 7zr-summary-rev-at-point (match-string-no-properties 1))
+	  (setq 7zr-pointer-lastviewed_raw_diff_file (concat 7zr-temp-directory 7zr-prepend-to-diff-file 7zr-summary-rev-at-point "_of_" 7zr-original-version))
+	  (shell-command (concat "7z e -aoa -o" 7zr-temp-directory " " 7zr-archive-name " " 7zr-summary-rev-at-point))
+	  (rename-file (concat 7zr-temp-directory 7zr-summary-rev-at-point) 7zr-pointer-lastviewed_raw_diff_file t)
+      
+;	   (setq 7zr-revisions_lastbuffer (current-buffer))
+
+	  (setq 7zr-view-last-line (car (7zr-new-linenum-after-diff 7zr-view-last-line 7zr-pointer-lastviewed_raw_diff_file " ")))
+	  (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
+	  )
+	)
+      (forward-line 1)
+      (setq iter (1+ iter))
+      ) ;while
+    (kill-buffer)
+    (switch-to-buffer 7zr-buffer)
+    (7zr-goto-last-line-column)
+  
+    ) ;let
   )
 
 (defun 7zr-view-raw-diff_next_page ()
@@ -1300,6 +1358,7 @@ This function is called by
   (forward-line 1)
   (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
   (7zr-summary-view-raw-diff-file) 
+;  (setq 7zr-view-last-line (car (7zr-new-linenum-after-diff 7zr-view-last-line 7zr-pointer-lastviewed_raw_diff_file 7zr-reconstruct-dtag)))
   )
 
 (defun 7zr-view-raw-diff_previous_page ()
@@ -1331,6 +1390,19 @@ This function is called by
   )
 
 
+(defun 7zr-view-raw-diff-quit7zr_then_goto_line ()
+  (interactive)
+  (beginning-of-line)
+  (when (not (looking-at "[0-9]"))   ; first somehow make sure that we are looking at a diff header
+    (7zr-view-raw-diff_prev_change_hunk))
+  (looking-at ".*")
+  (setq 7zr-view-raw-diff_line_num (7zr-last-integer-in-string (match-string-no-properties 0)))   
+  (kill-buffer)
+  (set-buffer 7zr-revisions_tmpbuffer)
+  (setq 7zr-view-last-column 0)
+  (7zr-view-raw-diff_line_number_change_to_end  (1- 7zr-view-raw-diff_line_num) )
+  )
+
 (defun 7zr-eval-string (str)
   "Read and evaluate all forms in str, returning results as a
 list.  Do not embed variables into the 'action method of the a
@@ -1351,7 +1423,10 @@ text or number values"
 
 (defun 7zr-summary-view-raw-diff-file ()
   "View the raw diff file for selected revision number.
-This function is called from a key binding of 7zr-summary-mode, as well as 7zr-view-mode"
+This function is called from a key binding of 7zr-summary-mode,
+as well as 7zr-view-mode.  The revision number is stored in the
+global variable 7zr-summary-rev-at-point.  The actual diff file
+filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
   (interactive)
   (beginning-of-line)
   (cond ((looking-at 7zr-original-version)  ;; if first row is highlighted, view first diff instead
@@ -1419,6 +1494,8 @@ This function is called from a key binding of 7zr-summary-mode, as well as 7zr-v
     (define-key map (kbd "d") '7zr-view-raw-diff_next_change_hunk)   
     (define-key map (kbd "e") '7zr-view-raw-diff_prev_change_hunk) 
     (define-key map (kbd "t") '7zr-view_datetime)
+    (define-key map (kbd "g") '7zr-view-raw-diff-quit7zr_then_goto_line)
+      
     (define-key map (kbd "r") '7zr-view-raw-diff-quit_then_view_revision)
     (define-key map (kbd "q") '7zr-view-raw-diff-quit)
     (define-key map [menu-bar 7zr-view-raw-diff]
@@ -1426,6 +1503,9 @@ This function is called from a key binding of 7zr-summary-mode, as well as 7zr-v
     (define-key map [menu-bar 7zr-view-raw-diff quit]
       '(menu-item "Quit View" 7zr-view-raw-diff-quit
                   :help "Quit viewing this raw diff file."))
+    (define-key map [menu-bar 7zr-view-raw-diff quit7zr]
+      '(menu-item "Quit 7z-revisions" 7zr-view-raw-diff-quit7zr_then_goto_line
+                  :help "Quit 7z-revisions and goto line associated with diff."))
     (define-key map [menu-bar 7zr-view-raw-diff quit-view-revision]
       '(menu-item "View revision" 7zr-view-raw-diff-quit_then_view_revision
                   :help "Switch to revision view."))
@@ -1528,6 +1608,23 @@ See help of `format-time-string' for possible replacements")
   )
   
 
+(defun 7zr-create-blank-notes-file-and-add-to-archive ()
+  (let (7zr-create-blank-file-tmpbuffer 7zr-saved-current-buffer (notes_file (concat (7zr-temp-directory 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension))))
+    
+    (setq 7zr-saved-current-buffer (current-buffer))
+    (setq 7zr-create-blank-file-tmpbuffer (generate-new-buffer-name notes_file))
+    (get-buffer-create 7zr-create-blank-file-tmpbuffer)
+    (set-buffer 7zr-create-blank-file-tmpbuffer)
+    (insert "[revision notes]")
+    (newline)
+    (write-file notes_file )
+    (kill-buffer)
+    (set-buffer 7zr-saved-current-buffer)
+    (shell-command (concat (7zr-add-to-archive-command " " 7zr-archive-name " " notes_file)))
+    (7zr-delete-file-if-exists notes_file)
+    )
+  )
+  
 
 (defun 7zr-examine-archive ()
   " find 7zr-original-version and create a buffer 7zr-revisions-tmp-buffer with names of patches, and discard any filenames that arent numbers per number-or-marker-p, also get 7zr-patch-number"
@@ -1558,7 +1655,7 @@ See help of `format-time-string' for possible replacements")
             (forward-line 1)
 	    (set-buffer 7zr-revisions_with-temp-buffer)
             (while 
-		(not (looking-at "^-[-]+"))
+		(not (looking-at "^---[-]+"))
 	      (set-buffer 7zr-revisions_with-temp-buffer)
 ;	      (beginning-of-line)
 ;	      (looking-at "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)" )
@@ -2354,75 +2451,6 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
   )
 
 
-(defun DEFUNCT7zr-list-revs ()
-  "returns name of buffer created, which lists the revs"
-  (setq 7zr-patch-number 0.0)
-  
-  (let ((ofile 7zr-archive-name)
-	(7zr-revisions_lastbuffer (current-buffer))
-	(7zr-revisions-list-revs-tmpbuffer (generate-new-buffer-name (concat "7zr-list-revs_of_" 7zr-buffer-filename)))
-        files file sum col timetuple savepoint reached-minuses patch highest-patch 7zr-revisions_with-temp-buffer )
-    (get-buffer-create 7zr-revisions-list-revs-tmpbuffer)
-    (set-buffer 7zr-revisions-list-revs-tmpbuffer)
-    (setq 7zr-revisions_with-temp-buffer (current-buffer))
-
-    (call-process "7z" nil t nil "l" ofile)
-
-    (goto-char (point-min))
-    (if (re-search-forward "^Listing archive:" nil t)
-	(progn
-	  (forward-line 2)
-            ;(setq sum (buffer-substring (point) (point-max)))
-	  (re-search-forward "Name")
-	  (setq col (- (current-column) 4))
-	  (re-search-forward "^-[-]+")
-	  (forward-line 1)
-	  (set-buffer 7zr-revisions_with-temp-buffer)
-	  (while 
-	      (not (looking-at "^-[-]+"))
-	    (set-buffer 7zr-revisions_with-temp-buffer)
-;	      (beginning-of-line)
-;	      (looking-at "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)" )
-;	      (setq timetuple (apply #'encode-time (parse-time-string (match-string 0))))
-	    (beginning-of-line)
-	    (forward-char col)
-	    (setq file (buffer-substring (point)
-					 (progn (forward-line 1)
-						(1- (point)))))
-	    
-	    (if (and (string-starts-with-p file 7zr-buffer-filename-without-extension)
-		     (not (string-match 7zr-archive-created-by-message file)))  
-		(setq 7zr-original-version file)
-	      (when (not (string-match "[a-zA-Z]+" file))   ; else it must be a number and contain no letters to match 		   
-		(progn
-		  (set-buffer 7zr-revisions-list-revs-tmpbuffer)
-		  (insert file)
-		  (newline)
-		  (setq patch (string-to-number file))
-		  (and (> patch 7zr-patch-number)            ; if patch is higher it becomes highest
-		       (setq 7zr-patch-number patch)
-		       
-		       )
-		  )
-		)
-	      )
-	    (set-buffer 7zr-revisions_with-temp-buffer)
-	    
-	    )
-	  )
-      
-      (error "Not a valid 7z-revisions.el archive file")
-      )
-
-
-    (set-buffer 7zr-revisions-list-revs-tmpbuffer)
-    (goto-char (point-min))
-    (goto-char (point-max))
-    (mark-whole-buffer)
- ;   (sort-numeric-fields)
-    
-    )
-  )
   
 (defun 7zr-list-revs ( filename )
   "create a read-only buffer containing list of revisions, returning the newly created buffer, and original version as a string"
@@ -2547,7 +2575,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
   
 
 (defun 7zr-line-last-changed-on ()
-  "Displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)"
+  "Displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account).  This function calls 7zr-list-revs"
   (interactive)
   (let ( find-archive-name (linenum (string-to-number (format-mode-line "%l"))) linenum_obj hunk_that_changed_line list-revs_obj revs-buffer rev rev-point pointer current-patch (saved-point-pos (point)) hash-of-file hash-from-table datetime_string 7zr-lastbuffer 7zr-buffer-file-name return_message)
 
@@ -3526,6 +3554,7 @@ highlighting changes when reviewing revisions"
 ;	(shell-command (concat "echo> " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
 	(7zr-create-blank-file-for-archive-created-by-message)
 	(shell-command (concat "7z a " 7zr-archive-name " " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
+	(7zr-create-blank-notes-file-and-add-to-archive)
   
 	(delete-file (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version))
 	(delete-file (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))

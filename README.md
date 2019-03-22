@@ -38,7 +38,8 @@ Compatible with windows and linux, and probably mac.
  q = quit to 7z-revisions buffer,<br/>
  n = next revision,<br/>
  p = previous revision,<br/> 
- j = view the raw diff file
+ j = view the raw diff file,<br/>
+ g = Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions.
 
 ### When highlight changes is enabled in view mode:<br/>
  d = jump to next difference/change,<br/> 
@@ -50,7 +51,8 @@ Compatible with windows and linux, and probably mac.
  p = previous diff file,<br/>
  r = switch to revision view,<br/>
  d = jump to next change hunk,<br/>
- e = jump to previous change hunk
+ e = jump to previous change hunk, <br/>
+ g = Quit 7z-revisions and then try to goto the line in your document corresponding to the change hunk that was at point.
 
  There are also some functions in the menu which provide for
  consoldating the current days worth of changes, or last hour
