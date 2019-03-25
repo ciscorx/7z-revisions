@@ -22,6 +22,7 @@ Compatible with windows and linux, and probably mac.
 **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
 **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associated with the first hunk of the last changes<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
+**M-x** **7zr-create-blank-file-for-archive-created-by-message** = updates archive descriptor entry
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions
      
 ### When **M-x** **7z-revisions** is started, the following key bindings take effect:<br/>

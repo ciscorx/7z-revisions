@@ -27,9 +27,12 @@
 ;; 7z-revisions can be called interactively to view or consolidate
 ;; past revisions in the archive.
 ;; 
-;; Some useful commands when editing your document:
+;; Some useful commands for when editing your document:
 ;;     M-x 7zr-line-last-changed-on
-;;     M-x 7zr-goto-line-of-last-revision 
+;;     M-x 7zr-goto-line-of-last-revision
+;;     M-x 7zr-create-blank-file-for-archive-created-by-message
+;;     M-x 7z-revisions-mode
+;;     M-x 7z-revisions
 ;;
 ;; When 7z-revisions is called, the following key bindings take
 ;;   effect: Enter = view the selected revision, j = view raw diff
@@ -140,7 +143,7 @@
 (setq 7zr-construct-slow_last "0")
 (setq 7zr-hash-of-hash-file "")
 (setq 7zr-summary-reconst-last "")
-(setq 7zr-archive-created-by-message "archive created by 7z-revisions.el")
+(setq 7zr-archive-created-by-message "7z-revisions.el created this archive")  ;; this string should probably not end in a file extension which has a 7zr-turn-on-7zr-revisions-mode add-hook, or it will cause emacs to crash when creating new archive  
 ; (defvar 7zr-hasht (make-hash-table :size 20000 :test 'equal))
 (setq 7zr-summary-last-line 0)  ; line number of revision in the 7z-revisions display, not to be mistaken for the last line number of point in the document ( which would be related to 7zr-view-last-pos or 7zr-view-last-line)
 (setq 7zr-view-last-column 0)
@@ -1596,21 +1599,30 @@ See help of `format-time-string' for possible replacements")
 
 
 (defun 7zr-create-blank-file-for-archive-created-by-message ()
-  (let (7zr-create-blank-file-tmpbuffer 7zr-save-current-buffer)
+  (interactive)
+  (let (7zr-create-blank-file-tmpbuffer 7zr-save-current-buffer archive_name)
     (setq 7zr-save-current-buffer (current-buffer))
-    (setq 7zr-create-blank-file-tmpbuffer (generate-new-buffer-name (concat "7zr-create-blank-file_of_" (file-name-nondirectory (buffer-file-name (current-buffer))) )))
-    (get-buffer-create 7zr-create-blank-file-tmpbuffer)
-    (set-buffer 7zr-create-blank-file-tmpbuffer)
-    (write-file (concat 7zr-temp-directory 7zr-archive-created-by-message))
-    (kill-buffer 7zr-archive-created-by-message)
-    (set-buffer 7zr-save-current-buffer)
+;    (setq 7zr-create-blank-file-tmpbuffer (generate-new-buffer-name (concat "7zr-create-blank-file_of_" (file-name-nondirectory (buffer-file-name (current-buffer))) )))
+    (setq archive_name (concat (buffer-name (current-buffer)) 7zr-archive-extension))
+    (setq 7zr-create-blank-file-tmpbuffer 7zr-archive-created-by-message)
+    (if (file-exists-p archive_name)
+	(progn
+	  (get-buffer-create 7zr-create-blank-file-tmpbuffer)
+	  (set-buffer 7zr-create-blank-file-tmpbuffer)
+	  (write-file (concat 7zr-temp-directory 7zr-archive-created-by-message))
+	  (kill-buffer 7zr-create-blank-file-tmpbuffer)
+	  (set-buffer 7zr-save-current-buffer)
+	  (shell-command (concat "7z a " archive_name " " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
+	  )
+      
+      (message (concat "There first needs to exist an archive named " archive_name " before the 7zr-archive-created-by-message file, entitled '" 7zr-archive-created-by-message  "' can be added to it!"))
+      )
     )
   )
   
 
 (defun 7zr-create-blank-notes-file-and-add-to-archive ()
-  (let (7zr-create-blank-file-tmpbuffer 7zr-saved-current-buffer (notes_file (concat (7zr-temp-directory 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension))))
-    
+  (let (7zr-create-blank-file-tmpbuffer 7zr-saved-current-buffer (notes_file (concat 7zr-temp-directory 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension)))    
     (setq 7zr-saved-current-buffer (current-buffer))
     (setq 7zr-create-blank-file-tmpbuffer (generate-new-buffer-name notes_file))
     (get-buffer-create 7zr-create-blank-file-tmpbuffer)
@@ -1620,7 +1632,7 @@ See help of `format-time-string' for possible replacements")
     (write-file notes_file )
     (kill-buffer)
     (set-buffer 7zr-saved-current-buffer)
-    (shell-command (concat (7zr-add-to-archive-command " " 7zr-archive-name " " notes_file)))
+    (shell-command (concat 7zr-add-to-archive-command " " 7zr-archive-name " " notes_file))
     (7zr-delete-file-if-exists notes_file)
     )
   )
@@ -3553,7 +3565,7 @@ highlighting changes when reviewing revisions"
 	(shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " 7zr-archive-name " " 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
 ;	(shell-command (concat "echo> " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
 	(7zr-create-blank-file-for-archive-created-by-message)
-	(shell-command (concat "7z a " 7zr-archive-name " " 7zr-temp-directory (shell-quote-argument 7zr-archive-created-by-message)))
+
 	(7zr-create-blank-notes-file-and-add-to-archive)
   
 	(delete-file (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version))
@@ -3664,12 +3676,18 @@ is invoked."
     (7zr-create-archive)
     )
   )
-  
+
 
 (defun 7zr-after-save-func ()
   "Commit the current file."
   (7zr-commit)
 )
+
+(defun 7zr-turn-on-7z-revisions-mode ()
+  "For convenience of readability, put this in add-hook to automatically turn on the 7z-revisions-mode minor mode when opening a file of a given type.  For example: (add-hook 'org-mode-hook '7zr-turn-on-7z-revisions-mode)"
+  (interactive)
+  (7z-revisions-mode 1)
+  )
 
 
 ;;;###autoload
