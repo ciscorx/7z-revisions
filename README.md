@@ -17,12 +17,21 @@ Compatible with windows and linux, and probably mac.
  highlighting.  In addition, syntax coloring is applied when viewing
  raw diff files.<br/>
 
+ If your document anywhere contains the tag text, like
+ 7z-revisions.el_rev= followed by nothing or any number, then upon
+ execution of the function 7zr-update-7z-revisions-tag-in-text, the
+ highest revision number, incremented by 1, will be added to the end
+ of that tag, in this case at the end of that equals sign.<br/>
+
+
 ## Commands
 ### Some useful commands when editing your document:<br/>
 **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
 **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associated with the first hunk of the last changes<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
-**M-x** **7zr-create-blank-file-for-archive-created-by-message** = updates archive descriptor entry
+**M-x** **7zr-create-file-for-archive-created-by-message** = updates archive descriptor entry<br/>
+**M-x** **7zr-update-7z-revisions-tag-in-text** = insert current revision number +1 at the end of the tag below<br/>
+**M-x** **7zr-alter-7z-revisions-tag** = change the tag that proceeds the revision number<br/>
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions
      
 ### When **M-x** **7z-revisions** is started, the following key bindings take effect:<br/>
