@@ -1,5 +1,5 @@
 # 7z-revisions
-This Emacs app is not really a version control system, but simply an incremental backup system that easily lets one browse and search past saves of a single file, keeping incremental diffs in a .7z archive.   Useful when git is considered over-kill.<br/>
+This Emacs app is not really a version control system, but simply an incremental backup system that easily lets one browse and search past saves of a single file, keeping incremental diffs in a .7z archive, facilitating quick audits.   Useful when git is considered over-kill.<br/>
 Compatible with windows and linux, and probably mac.
 
 ## Commentary:
@@ -22,17 +22,24 @@ Compatible with windows and linux, and probably mac.
  execution of the function 7zr-update-7z-revisions-tag-in-text, the
  highest revision number, incremented by 1, will be added to the end
  of that tag, in this case at the end of that equals sign.<br/>
-
+ A tag of, for instance, 7zr-revisions.el_directory-of-archive=../
+ will specify the parent directory as the directory where the archive
+ resides, etc.  For convenience, the tags can be inserted into the
+ document or metadata file using the
+ 7zr-select-tag-to-insert-into-document function.<br/>
 
 ## Commands
 ### Some useful commands when editing your document:<br/>
 **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
 **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associated with the first hunk of the last changes<br/>
+**M-x** **7zr-archive-edit-metadata-file**<br/>
+**M-x** **7zr-archive-save-metadata-file**<br/>
+**M-x** **7zr-select-tag-to-insert-into-document**<br/> 
+**M-x** **7zr-update-7z-revisions-tag-in-text** = insert current revision number +1 at the end of a revision number tag, and other info after their respective tags.<br/>
+**M-x** **7zr-create-file-for-archive-created-by-message** = put a metadata file into the archive, used for associating archive with 7z-revisions.el<br/>
+**M-x** **7zr-rename-document-and-its-archive**<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
-**M-x** **7zr-create-file-for-archive-created-by-message** = updates archive descriptor entry<br/>
-**M-x** **7zr-update-7z-revisions-tag-in-text** = insert current revision number +1 at the end of the tag below<br/>
-**M-x** **7zr-alter-7z-revisions-tag** = change the tag that proceeds the revision number<br/>
-**M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions
+**M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions<br/>
      
 ### When **M-x** **7z-revisions** is started, the following key bindings take effect:<br/>
  Enter = view revision at point,<br/> 
@@ -94,7 +101,7 @@ Compatible with windows and linux, and probably mac.
  real number, e.g. "1.0".  
  - Each archive can only track one file.  (let's call this a
  feature)
- - There's no way to add commit or revision notes.
+ - There's no way to add commit or revision notes yet.
  - buffer local variables arent working properly enough in emacs 23.2.1
      to allow for two archives to be opened at once.  It appears that
      elisp has trouble with using a buffer local variable to store a
