@@ -4,28 +4,35 @@ Compatible with windows and linux, and probably mac.
 
 ## Commentary:
 
- 7z-revisions-mode is an Emacs minor mode that saves the current
- buffer to a 7-zip archive of the same name, whenever a save-buffer
- command is issued.  A time-stamp in the form of MMDDYY-HHMMSS is
- appended to the archived file.  If the .7z archive file already
- exists then it incrementally saves the latest revision by adding a
- new patch to the archive.  The .7z extension can be altered to
- something else, such as .8z for example, by setting the global
- variable 7zr-archive-extension to ".8z".  Additionally, the function
- 7z-revisions can be called interactively to view or consolidate past
- revisions in the archive, providing word by word differential
- highlighting.  In addition, syntax coloring is applied when viewing
- raw diff files.<br/>
+ Wouldnt it be nice if, after every time you save your buffer, you
+ could go back and double check to see exactly what was saved, in
+ addition to what perhaps may have accidentally been deleted?  Well,
+ now you can.  7z-revisions-mode is an Emacs minor mode that saves the
+ current buffer to a 7-zip archive of the same name, whenever a
+ save-buffer command is issued.  A time-stamp in the form of
+ MMDDYY-HHMMSS is appended to the archived file.  If the .7z archive
+ file already exists then it incrementally saves the latest revision
+ by adding a new patch to the archive.  Optionally, the .7z extension
+ can be altered to something else, such as .8z for example, by setting
+ the global variable 7zr-archive-extension to ".8z".  Additionally,
+ the function 7z-revisions can be called interactively to view or
+ consolidate past revisions in the archive, providing word by word
+ differential highlighting.  In addition, syntax coloring is applied
+ when viewing raw diff files.<br/>
 
- If your document anywhere contains the tag text, like
+ If your document anywhere contains a tag text, such as
  7z-revisions.el_rev= followed by nothing or any number, then upon
- execution of the function 7zr-update-7z-revisions-tag-in-text, the
- highest revision number, incremented by 1, will be added to the end
- of that tag, in this case at the end of that equals sign.<br/>
- A tag of, for instance, 7zr-revisions.el_directory-of-archive=../
- will specify the parent directory as the directory where the archive
- resides, etc.  For convenience, the tags can be inserted into the
- document or metadata file using the
+ execution of the function 7zr-update-7z-revisions-tags-in-text, the
+ highest revision number, incremented by 1, will be inserted to the end
+ of that tag, in this case at the end of that equals sign, replacing
+ the previous number, if present.<br/> A tag of, for instance,
+ 7zr-revisions.el_directory-of-archive=../ will specify the parent
+ directory as the directory where the archive resides, etc.  For
+ another example, 7z-revision.el_sha1-of-last-revision= will cause the
+ insertion of the sha1sum hash value of the last revision after the
+ tag.<br/>
+ For your convenience, the tags can be inserted into the
+ document or into the metadata file using the
  7zr-select-tag-to-insert-into-document function.<br/>
 
 ## Commands
@@ -37,6 +44,7 @@ Compatible with windows and linux, and probably mac.
 **M-x** **7zr-select-tag-to-insert-into-document**<br/> 
 **M-x** **7zr-update-7z-revisions-tag-in-text** = insert current revision number +1 at the end of a revision number tag, and other info after their respective tags.<br/>
 **M-x** **7zr-create-file-for-archive-created-by-message** = put a metadata file into the archive, used for associating archive with 7z-revisions.el<br/>
+**M-x** **7zr-revision-note-annotation**
 **M-x** **7zr-rename-document-and-its-archive**<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions<br/>
@@ -49,14 +57,16 @@ Compatible with windows and linux, and probably mac.
  h = toggle highlight differences,<br/>
  j = view the raw diff file at point,<br/>
  a = view all selected diff files in one buffer,<br/>
- \# = prompt input of sha1 checksum and search for it
+ \# = prompt input of sha1 checksum and search for it<br/>
+ z = edit revision note
 
 ### While viewing individual past revisions:<br/>
  q = quit to 7z-revisions buffer,<br/>
  n = next revision,<br/>
  p = previous revision,<br/> 
  j = view the raw diff file,<br/>
- g = Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions.
+ g = Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions.<br/>
+ z = edit revision note
 
 ### When highlight changes is enabled in view mode:<br/>
  d = jump to next difference/change,<br/> 
@@ -69,7 +79,8 @@ Compatible with windows and linux, and probably mac.
  r = switch to revision view,<br/>
  d = jump to next change hunk,<br/>
  e = jump to previous change hunk, <br/>
- g = Quit 7z-revisions and then try to goto the line in your document corresponding to the change hunk that was at point.
+ g = Quit 7z-revisions and then try to goto the line in your document corresponding to the change hunk that was at point.<br/>
+ z = edit revision note
 
  There are also some functions in the menu which provide for
  consoldating the current days worth of changes, or last hour
@@ -98,15 +109,9 @@ Compatible with windows and linux, and probably mac.
 
  - File names must contain at least 1 alphabetical character or
  underscore or hyphen, and in this regard, cannot take the form of a
- real number, e.g. "1.0".  
+ real number, e.g. "1.0".  (let's call this a feature)
  - Each archive can only track one file.  (let's call this a
- feature)
- - There's no way to add commit or revision notes yet.
- - buffer local variables arent working properly enough in emacs 23.2.1
-     to allow for two archives to be opened at once.  It appears that
-     elisp has trouble with using a buffer local variable to store a
-     vector; it only seems to store the first element.  However, elisp
-     seems to have no problem with storing buffer local lists.    
+ feature also)
  - When viewing some middle revision, followed by the original
      version, then followed by the first revision, it hangs
      indefinitely, where upon the C-g key must be invoked.
