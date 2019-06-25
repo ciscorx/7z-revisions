@@ -44,7 +44,7 @@ Compatible with windows and linux, and probably mac.
 **M-x** **7zr-select-tag-to-insert-into-document**<br/> 
 **M-x** **7zr-update-7z-revisions-tag-in-text** = insert current revision number +1 at the end of a revision number tag, and other info after their respective tags.<br/>
 **M-x** **7zr-create-file-for-archive-created-by-message** = put a metadata file into the archive, used for associating archive with 7z-revisions.el<br/>
-**M-x** **7zr-revision-note-annotation**
+**M-x** **7zr-revision-note-annotation**<br/>
 **M-x** **7zr-rename-document-and-its-archive**<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions<br/>
@@ -112,9 +112,6 @@ Compatible with windows and linux, and probably mac.
  real number, e.g. "1.0".  (let's call this a feature)
  - Each archive can only track one file.  (let's call this a
  feature also)
- - When viewing some middle revision, followed by the original
-     version, then followed by the first revision, it hangs
-     indefinitely, where upon the C-g key must be invoked.
  - Words added to beginning of line additionally highlight following
      word green. In some cases highlighting is off by 1 word.
 
