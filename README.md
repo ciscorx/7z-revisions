@@ -4,18 +4,20 @@ Compatible with windows and linux, and probably mac.
 
 ## Commentary:
 
- Wouldnt it be nice if, after every time you save your buffer, you
- could go back and double check to see exactly what was saved, in
- addition to what perhaps may have accidentally been deleted?  Well,
- now you can.  7z-revisions-mode is an Emacs minor mode that saves the
- current buffer to a 7-zip archive of the same name, whenever a
- save-buffer command is issued.  A time-stamp in the form of
- MMDDYY-HHMMSS is appended to the archived file.  If the .7z archive
- file already exists then it incrementally saves the latest revision
- by adding a new patch to the archive.  Optionally, the .7z extension
- can be altered to something else, such as .8z for example, by setting
- the global variable 7zr-archive-extension to ".8z".  Additionally,
- the function 7z-revisions can be called interactively to view or
+
+ Wouldnt it be nice to be able to go back and double check to see
+ exactly what you saved, when you saved it, in addition to perhaps
+ what you may have accidentally deleted?  7z-revisions is now
+ available, an essential #emacs #orgmode companion that does exactly
+ that.  With the 7z-revisions-mode minor mode, the current buffer is
+ saved to a 7-zip archive of the same name, whenever a save-buffer
+ command is issued.  A time-stamp in the form of MMDDYY-HHMMSS is
+ appended to the archived file.  If the .7z archive file already
+ exists then it incrementally saves the latest revision by adding a
+ new patch to the archive.  Optionally, the .7z extension can be
+ altered to something else, such as .8z for example, by setting the
+ global variable 7zr-archive-extension to ".8z".  Additionally, the
+ function 7z-revisions can be called interactively to view or
  consolidate past revisions in the archive, providing word by word
  differential highlighting.  In addition, syntax coloring is applied
  when viewing raw diff files.<br/>
@@ -23,19 +25,18 @@ Compatible with windows and linux, and probably mac.
  If your document anywhere contains a tag text, such as
  7z-revisions.el_rev= followed by nothing or any number, then upon
  execution of the function 7zr-update-7z-revisions-tags-in-text, the
- highest revision number, incremented by 1, will be inserted to the end
- of that tag, in this case at the end of that equals sign, replacing
- the previous number, if present.<br/> A tag of, for instance,
- 7zr-revisions.el_directory-of-archive=../ will specify the parent
- directory as the directory where the archive resides, etc.  For
- another example, 7z-revision.el_sha1-of-last-revision= will cause the
- insertion of the sha1sum hash value of the last revision after the
- tag.<br/>
- For your convenience, the tags can be inserted into the
- document or into the metadata file using the
+ highest revision number, incremented by 1, will be inserted to the
+ end of that tag, in this case at the end of that equals sign,
+ replacing the previous number, if present.<br/> A tag of, for
+ instance, 7zr-revisions.el_directory-of-archive=../ will specify the
+ parent directory as the directory where the archive resides, etc.
+ For another example, 7z-revision.el_sha1-of-last-revision= insertion
+ of the sha1sum hash value of the last revision after the tag.<br/>
+ For your convenience, the tags can be inserted into the document or
+ into the metadata file using the
  7zr-select-tag-to-insert-into-document function.<br/>
 
-## Commands
+## Commands<br/>
 ### Some useful commands when editing your document:<br/>
 **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
 **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associated with the first hunk of the last changes<br/>
@@ -45,10 +46,26 @@ Compatible with windows and linux, and probably mac.
 **M-x** **7zr-update-7z-revisions-tag-in-text** = insert current revision number +1 at the end of a revision number tag, and other info after their respective tags.<br/>
 **M-x** **7zr-create-file-for-archive-created-by-message** = put a metadata file into the archive, used for associating archive with 7z-revisions.el<br/>
 **M-x** **7zr-revision-note-annotation**<br/>
+**M-x** **7zr-modify-raw-hash-file**<br/>
+**M-x** **7zr-modify-raw-notes-file**<br/>
 **M-x** **7zr-rename-document-and-its-archive**<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions<br/>
      
+### When **7z-revisions-mode** is active, the following two sequence key bindings take effect:<br/>
+ F2 F3 = 7z-revisions,<br/>
+ F2 t = auto update tags,<br/>
+ F2 3 = update tags,<br/>
+ F2 Ctrl-S = update tags & save buffer,<br/>
+ F2 l = goto line last changed,<br/>
+ c = when was line of point last changed,<br/>
+ F2 s = select tag to insert,<br/>
+ F2 n = enter a revision note,<br/>
+ F2 r = rename document & archive,<br/>
+ F2 e = edit metafile (created-by-message file),<br/>
+ F2 ` = exit 7z-revisions-mode.<br/>
+
+
 ### When **M-x** **7z-revisions** is started, the following key bindings take effect:<br/>
  Enter = view revision at point,<br/> 
  q = quit 7z-revisions,<br/>
