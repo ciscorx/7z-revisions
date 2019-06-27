@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 1.5
-;; commit date: 2019-06-26
+;; version: 1.6
+;; commit date: 2019-06-27
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -40,9 +40,10 @@
 ;; the previous number, if present.  A tag, for instance, of
 ;; 7zr-revisions.el_directory-of-archive=../ will specify the parent
 ;; directory as the directory where the archive resides, etc.  For
-;; another example, 7z-revision.el_sha1-of-last-revision=
-;; the insertion of the sha1sum hash value of the last revision after
-;; the tag.
+;; another example, 7z-revision.el_sha1-of-last-revision= the
+;; insertion of the sha1sum hash value of the last revision after the
+;; tag, which e.g. in a blockchain sort of way, establishes a
+;; forensically authentic journal.
 ;; For your convenience, the tags can be inserted into the document or
 ;; into the metadata file (the created-by-message file) using the
 ;; 7zr-select-tag-to-insert-into-document function.
@@ -62,12 +63,12 @@
 ;;     M-x 7z-revisions-mode
 ;;     M-x 7z-revisions
 ;;
-;; When 7z-revisions-mode is active, the following 2 sequence key
+;; When 7z-revisions-mode is active, the following two sequence key
 ;; bindings take effect: F2 F3 = 7z-revisions, F2 t = auto update
-;; tags, F2 3 = update tags, F2 Ctrl-S = update tags & save buffer, F2
-;; l = goto line last changed, c = when was line of point last
+;; tags, F2 3 = update tags, F2 CTRL-s = update tags & save buffer, F2
+;; l = goto line last changed, F2 c = when was line of point last
 ;; changed, F2 s = select tag to insert, F2 n = enter a revision note,
-;; F2 r = rename document & archive, F2 e = edit metafile
+;; F2 CTRL-r = rename document & archive, F2 e = edit metafile
 ;; (created-by-message file), F2 ` = exit 7z-revisions-mode.
 ;;
 ;; When 7z-revisions is called, the following key bindings take
@@ -144,7 +145,7 @@
 (setq debug-on-error t)
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 1.5)
+(setq 7z-revisions-version 1.6)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit
 (setq 7zr-archive-extension ".7z")
@@ -243,7 +244,9 @@
 (setq 7zr-update-7z-revisions-tag-in-metadata-file_directory-of-archive "directory-of-archive=")
 (setq 7zr-update-7z-revisions-tag-in-metadata-file_track-md5sum-hashes "track-sha1sum-hashes=")
 (setq 7zr-update-7z-revisions-tag-in-metadata-file_sha1-of-last-revision "sha1-of-last-revision=")
+;;(setq 7zr-update-7z-revisions-tag-in-metadata-file_compile-staging-directory "compile-staging-directory=")
 
+					; the following choices are only for the main text document
 (setq 7zr-tag_choice->tag_text
       '(("revision" . 7zr-update-7z-revisions-tag-in-text_rev )
 	("directory of archive" . 7zr-update-7z-revisions-tag-in-text_directory-of-archive )
@@ -255,6 +258,7 @@
 ;	(7zr-update-7z-revisions-tag-in-metadata-file_archive-filename-including-fullpath . 7zr-update-7z-revisions-tag-in-metadata-file_archive-filename-including-fullpath)
 ;	(7zr-update-7z-revisions-tag-in-metadata-file_archive-filename-including-relativepath . 7zr-update-7z-revisions-tag-in-metadata-file_archive-filename-including-relativepath)
 	))
+					; the following choices are only available for use in the metadata file (i.e. created-by-message file)
 (setq 7zr-tag_choice->metadata-file-tag_text
       '(("revision" . 7zr-update-7z-revisions-tag-in-metadata-file_rev )
 	("directory of archive" . 7zr-update-7z-revisions-tag-in-metadata-file_directory-of-archive  )
@@ -358,7 +362,6 @@
 (defvar 7zr-summary-mode-variant nil
   "Non-nil if this buffer's major mode is a variant of 7zr-summary mode.
 Use (derived-mode-p \\='7zr-summary-mode) instead.")
-
 
 
 (defvar 7zr-summary-mode-map
@@ -484,15 +487,17 @@ This is how `toggle-7zr-summary-mode-auto-fill' knows which buffers to operate o
     (define-key map (kbd "<f2> l") '7zr-goto-line-of-last-revision)
     (define-key map (kbd "<f2> c") '7zr-line-last-changed-on)
     (define-key map (kbd "<f2> s") '7zr-select-tag-to-insert-into-document)
+    (define-key map (kbd "<f2> C-h") '7zr-modify-raw-hash-file)
+    (define-key map (kbd "<f2> C-n") '7zr-modify-raw-notes-file)    
     (define-key map (kbd "<f2> n") '7zr-notes-annotation)
-    (define-key map (kbd "<f2> r") '7zr-rename-document-and-its-archive)
+    (define-key map (kbd "<f2> C-r") '7zr-rename-document-and-its-archive)
     (define-key map (kbd "<f2> m") '7zr-archive-edit-metadata-file)
     (define-key map [menu-bar 7z-revisions-mode]
       (cons "7z-revisions" (make-sparse-keymap "7z-revisions")))
     (define-key map [menu-bar 7z-revisions-mode exit-7z-revisions-mode]
       '(menu-item "Exit 7z-revisions-mode" 7z-revisions-mode
                   :help "exits mode"))
-   (define-key map [menu-bar 7z-revisions-mode sep4] menu-bar-separator)
+   (define-key map [menu-bar 7z-revisions-mode sep5] menu-bar-separator)
 
     (define-key map [menu-bar 7z-revisions-mode edit-metadata-file]
       '(menu-item "Edit Metafile" 7zr-archive-edit-metadata-file
@@ -502,6 +507,14 @@ This is how `toggle-7zr-summary-mode-auto-fill' knows which buffers to operate o
       '(menu-item "Rename Document & Archive" 7zr-rename-document-and-its-archive
                   :help "Rename this document, along with its archive; use with caution."))
 
+    (define-key map [menu-bar 7z-revisions-mode modify-raw-notes-file]
+      '(menu-item "Modify Raw Notes File" 7zr-modify-raw-notes-file
+                  :help "Use with caution."))
+
+    (define-key map [menu-bar 7z-revisions-mode modify-raw-hash-file]
+      '(menu-item "Modify Raw Hash File" 7zr-modify-raw-hash-file
+                  :help "Use with caution.  Perhaps best not to use at all!"))
+    (define-key map [menu-bar 7z-revisions-mode sep4] menu-bar-separator)
     (define-key map [menu-bar 7z-revisions-mode edit-notes-annotation]
       '(menu-item "Notes Annotation" 7zr-notes-annotation
                   :help "Edit note to be applied to next revision."))
@@ -916,7 +929,7 @@ the patch files to be deleted in the region."
       (let ((tem to))
 	(setq to from from tem)))
   (let
-      ( (abort_function nil) from-patch to-patch froms-nearest-ancestor end-at-latest-version start-at-original-version 7zr-consolidate-line_from point-from-minus-first-line max-patch max-line datetime-reference-timestamp )
+      ( (abort_function nil) from-patch to-patch froms-nearest-ancestor end-at-latest-version start-at-original-version 7zr-consolidate-line_from point-from-minus-first-line max-patch max-line datetime-reference-timestamp new_note notes_revlist)
     (setq 7zr-summary-consolidate-string "")
     (setq 7zr-patch-command-called-x-times 0)
     (setq 7zr-summary-consolidate-to-minus-last-patch 0)
@@ -989,8 +1002,8 @@ the patch files to be deleted in the region."
 		  )
 		)
 	    ; else it starts at from-patch
-	    (7zr-reconstruct-slow from-patch point-from-minus-first-line)
-	    )
+	    (setq notes_revlist (7zr-reconstruct-slow from-patch point-from-minus-first-line))
+	    ) ; if start at original version
 	  (if end-at-latest-version  ; ends at latest version ?
 	      (progn
 		(save-window-excursion
@@ -1004,7 +1017,7 @@ the patch files to be deleted in the region."
 		  )
 		)
 	  ; else it ends at to-patch
-	    (7zr-reconstruct-slow to-patch to)
+	    (setq notes_revlist (7zr-reconstruct-slow to-patch to))
 	    (setq datetime-reference-timestamp (car (nthcdr 5 (file-attributes (concat 7zr-temp-directory to-patch ))))) 
 	    ) ; if
 
@@ -1019,6 +1032,10 @@ the patch files to be deleted in the region."
 ;(shell-command (concat "touch -r " 7zr-temp-directory "7zr-datetime-reference " 7zr-temp-directory to-patch))
 	    (shell-command (concat "7z u -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " (7zr-shell-quote-argument 7zr-archive-directory)(7zr-shell-quote-argument 7zr-archive-name) " " (7zr-shell-quote-argument 7zr-temp-directory) to-patch))
 	    (7zr-delete-file-if-exists (concat  7zr-temp-directory "7zr-datetime-reference"))
+
+	    (setq new_note (concat "Consolidated from " from-patch " to " to-patch "  on " (7zr-current-date-time-win) " deleting the following diffs: " (7zr-trim-r (7zr-trim-l 7zr-summary-consolidate-string)) ", which had the following notes: " notes_revlist ))
+	    (puthash to-patch new_note 7zr-notestab)
+	    (7zr-add-string-to-archived-file (concat "(puthash \"" to-patch "\" \"" new_note "\" 7zr-notestab)\n") 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension)
 
 	    )
 	  (toggle-read-only 0)
@@ -1865,7 +1882,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 	(7zr-view-raw-diff-file-mode 1)
 	(set-buffer-modified-p nil)
 	(toggle-read-only 1)
-	(message 7zr-view_date)
+	(message (concat 7zr-view_date " " (gethash 7zr-summary-rev-at-point (buffer-local-value '7zr-notestab 7zr-active-document_last-buffer))))
 
 	))
      (t nil)
@@ -3209,30 +3226,18 @@ overwritep option is ignored for now."
 	(setq 7zr-revisions_tmpbuffer_lines (line-number-at-pos))
 	)
 					; else
-;    (princ (current-buffer))
+
     (error (concat "something went terribly wrong in function 7zr-reconstruct-get-max-patch-string()"))
     )
   (goto-char 7zr-reconstruct-save-point)
   )
 
 
-(defun 7zr-reconstruct-sl ()
-  "DEFUNCT"
-  (beginning-of-line)
-  (looking-at "\\([0-9]+\.[0-9]+\\)")
-  (setq 7zr-sl-rev (match-string-no-properties 1))
-  (7zr-reconstruct-slow 7zr-sl-rev (line-end-position))
-  (find-file-read-only (concat 7zr-temp-directory "rev" 7zr-sl-rev "_of_" 7zr-original-version))
-  (7z-revisions-mode 0)
-  (7zr-set-some-buffer-local-vars)
-  (7zr-view-local-set-keys)
-)
-
 
 (defun 7zr-reconstruct-slow (rev rev-point)
   "This function is only called from 7zr-summary-consolidate-region
-and does the same thing as 7zr-reconstruct-rev-from-patches"
-  (let ( pointer current-patch	(saved-point-pos (point)) hash-of-file	hash-from-table  )
+and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence the name.  This function also returns the notes associated with each revision in the range, in a string"
+  (let ( pointer current-patch	(saved-point-pos (point)) hash-of-file	hash-from-table  (notes_string "") (notes_stack () ) )
     (setq 7zr-patch-command-called-x-times 0)
 
     (save-window-excursion
@@ -3245,7 +3250,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 	(forward-line 1)
 	(narrow-to-region (point) rev-point)
 	(goto-char (point-min))
-	(while (re-search-forward "\\([0-9]+\.[0-9]\\)" nil t)
+	(while (re-search-forward "^\\([0-9]+\.[0-9]+\\)" nil t) 
 	  (setq current-patch (match-string-no-properties 1))
 	  (save-window-excursion
 	    (shell-command (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument 7zr-archive-directory)(7zr-shell-quote-argument 7zr-archive-name) " " current-patch))
@@ -3254,7 +3259,8 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 	    (shell-command (concat "touch -r " (7zr-shell-quote-argument 7zr-temp-directory) current-patch " " (7zr-shell-quote-argument 7zr-temp-directory) "7zr-datetime-reference"))
 
 	    (7zr-delete-file-if-exists (concat 7zr-temp-directory current-patch ))
-	  )
+
+	  ) ; save-window-excursion
 ;	  (setq 7zr-patch-command-called-x-times (incf 7zr-patch-command-called-x-times))  ;debug
 	  (when 7zr-track-md5sum-hashes-p 
 	    (setq hash-from-table (gethash current-patch 7zr-hasht))
@@ -3263,13 +3269,17 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
 	      (message (concat "revision " current-patch  " has incorrect hash!"))
 	      )
 	    )
+	  
+	  (push (gethash current-patch 7zr-notestab) notes_stack)
 	  )  ; while		
 	(7zr-rename-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) (concat 7zr-temp-directory "rev" rev "_of_" 7zr-original-version))
 	(7zr-delete-file-if-exists (concat 7zr-temp-directory "rev" 7zr-construct-slow_last "_of_" 7zr-original-version))
 	(setq 7zr-construct-slow_last current-patch)
 	)
       )
-    )
+    (mapcar (lambda (x) (setq notes_string (concat notes_string  x "\n" ))) notes_stack)
+    notes_string
+    ) ; let
   )
 
 (defun 7zr-new-linenum-after-diff ( linenum_param diff-file direction )
@@ -4107,12 +4117,11 @@ and does the same thing as 7zr-reconstruct-rev-from-patches"
     (when 7zr-view_highlightp
       (7zr-view-highlight-changes t t)
       )
-    (message (concat "Revised on " 7zr-view_date))
-    (7zr-view-mode)
 
+    (7zr-view-mode)
+    (message (concat "Revised on " 7zr-view_date " " (gethash 7zr-summary-rev-at-point (buffer-local-value '7zr-notestab 7zr-active-document_last-buffer))))
     )
   )
-
 
 
  
@@ -5297,12 +5306,12 @@ Tries to be version control aware."
 (defun 7zr-modify-raw-notes-file ()
   "Use with caution"
   (interactive)
-  (if (not (bound-and-true-p 7zr-window))
-      (message "Sorry, you cannot use this function here.")
+;  (if (not (bound-and-true-p 7zr-window))
+;      (message "Sorry, you cannot use this function here.")
     (when (not (bound-and-true-p 7z-viewing))
       (7zr-populate-initial-global-vars)
       (7zr-get-highest-rev-and-original-version)
-      )
+ ;     )
     (7zr-archive-edit-metadata-file 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension)
     )
   )
@@ -5310,14 +5319,14 @@ Tries to be version control aware."
 (defun 7zr-modify-raw-hash-file ()
   "Use with caution.  Actually should not use at all."
   (interactive)
-  (if (not (bound-and-true-p 7zr-window))
-      (message "Sorry, you cannot use this function here.")
+  ;(if (not (bound-and-true-p 7zr-window))
+  ;    (message "Sorry, you cannot use this function here.")
     (when (not (bound-and-true-p 7z-viewing))
       (7zr-populate-initial-global-vars)
       (7zr-get-highest-rev-and-original-version)
       )
     (7zr-archive-edit-metadata-file 7zr-prepend-to-hash-file 7zr-original-version)
-    )
+  ;  )
   )
 
 (defun 7zr-archive-edit-metadata-file ( &optional prefix file extension )

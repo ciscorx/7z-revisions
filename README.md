@@ -27,11 +27,14 @@ Compatible with windows and linux, and probably mac.
  execution of the function 7zr-update-7z-revisions-tags-in-text, the
  highest revision number, incremented by 1, will be inserted to the
  end of that tag, in this case at the end of that equals sign,
- replacing the previous number, if present.<br/> A tag of, for
- instance, 7zr-revisions.el_directory-of-archive=../ will specify the
- parent directory as the directory where the archive resides, etc.
- For another example, 7z-revision.el_sha1-of-last-revision= insertion
- of the sha1sum hash value of the last revision after the tag.<br/>
+ replacing the previous number, if present.<br/> 
+ A tag of, for instance, 7zr-revisions.el_directory-of-archive=../ will
+ specify the parent directory as the directory where the archive
+ resides, etc.<br/>
+ For another example, 7z-revision.el_sha1-of-last-revision= causes the
+ insertion of the sha1sum hash value of the last revision to be placed
+ after the tag, which e.g. in a blockchain sort of way, establishes a
+ forensically authentic journal.<br/>
  For your convenience, the tags can be inserted into the document or
  into the metadata file using the
  7zr-select-tag-to-insert-into-document function.<br/>
@@ -56,12 +59,12 @@ Compatible with windows and linux, and probably mac.
  F2 F3 = 7z-revisions,<br/>
  F2 t = auto update tags,<br/>
  F2 3 = update tags,<br/>
- F2 Ctrl-S = update tags & save buffer,<br/>
+ F2 CTRL-s = update tags & save buffer,<br/>
  F2 l = goto line last changed,<br/>
  c = when was line of point last changed,<br/>
  F2 s = select tag to insert,<br/>
  F2 n = enter a revision note,<br/>
- F2 r = rename document & archive,<br/>
+ F2 CTRL-r = rename document & archive,<br/>
  F2 e = edit metafile (created-by-message file),<br/>
  F2 ` = exit 7z-revisions-mode.<br/>
 
