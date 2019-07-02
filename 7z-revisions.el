@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 1.7
-;; commit date: 2019-07-01
+;; version: 1.8
+;; commit date: 2019-07-02
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -23,21 +23,21 @@
 ;; available, an indispensable #emacs #orgmode companion that does
 ;; exactly that.  With the 7z-revisions-mode minor mode, the current
 ;; buffer is saved to a 7-zip archive of the same name, whenever a
-;; save-buffer command is issued.  A timestamp in the form of
-;; MMDDYY-HHMMSS is appended to the archived file.  If the .7z archive
-;; file already exists then it incrementally saves the latest revision
+;; save-buffer command is issued, incrementally saving the latest revision
 ;; by adding a new patch to the archive.  Optionally, the .7z
 ;; extension can be altered to something else, such as .8z, by setting
 ;; the global variable 7zr-archive-extension to ".8z".  Additionally,
 ;; the function 7z-revisions can be called interactively to view or
 ;; consolidate past revisions in the archive.
 ;;
-;; If your document anywhere contains a tag text, such as
-;; 7z-revisions.el_rev= followed by nothing or any number, then upon
-;; execution of the function 7zr-update-7z-revisions-tags-in-text, the
-;; highest revision number, incremented by 1, will be added to the end
-;; of that tag, in this case at the end of that equals sign, replacing
-;; the previous number, if present.  A tag, for instance, of
+;; If your document anywhere contains a specific tag in the text, such
+;; as 7z-revisions.el_rev= followed by nothing or any number, then
+;; upon execution of the function
+;; 7zr-update-7z-revisions-tags-in-text, which is automatically called
+;; upon save if the 7zr-auto-update-tags-in-text-p variable is set to
+;; t, the highest revision number, incremented by 1, will be added to
+;; the end of that tag, in this case at the end of that equals sign,
+;; replacing the previous number, if present.  A tag, for instance, of
 ;; 7zr-revisions.el_directory-of-archive=../ will specify the parent
 ;; directory as the directory where the archive resides, etc.  For
 ;; another example, 7z-revision.el_sha1-of-last-revision= the
@@ -47,7 +47,7 @@
 ;; For your convenience, the tags can be inserted into the document or
 ;; into the metadata file (the created-by-message file) using the
 ;; 7zr-select-tag-to-insert-into-document function.
-
+;; 
 ;; Some useful commands for when editing your document:
 ;;     M-x 7zr-line-last-changed-on
 ;;     M-x 7zr-goto-line-of-last-revision
@@ -146,7 +146,7 @@
 (setq debug-on-error t)
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 1.7)
+(setq 7z-revisions-version 1.8)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit
 (setq 7zr-archive-extension ".7z")
@@ -2198,6 +2198,8 @@ See help of `format-time-string' for possible replacements")
     (setq 7zr-create-blank-file-tmpbuffer (generate-new-buffer-name notes_file))
     (get-buffer-create 7zr-create-blank-file-tmpbuffer)
     (set-buffer 7zr-create-blank-file-tmpbuffer)
+    (insert (concat ";; 7z-revisions.el notes file for " 7zr-original-version))
+    (newline)
     (write-file notes_file )
     (kill-buffer)
     (set-buffer 7zr-saved-current-buffer)
@@ -2966,6 +2968,7 @@ STRING is the output line from PROC."
 
 
 (defun 7zr-string-trim-final-newline (string)
+  "Removes the last newline character on the string, if there is one at the end of the string.  This function generally needs to be executed twice when running on windows."
   (let ((len (length string)))
     (cond
       ((and (> len 0) (eql (aref string (- len 1)) ?\n))
@@ -3043,7 +3046,7 @@ STRING is the output line from PROC."
       (set (make-local-variable '7zr-active-document_original-version) 7zr-original-version)
       
       (shell-command (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument 7zr-archive-directory)(7zr-shell-quote-argument 7zr-archive-name) " " 7zr-prepend-to-hash-file (7zr-shell-quote-argument 7zr-current-original-version)))
-      (setq hash (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) 7zr-prepend-to-hash-file (7zr-shell-quote-argument 7zr-current-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1)))))
+      (setq hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) 7zr-prepend-to-hash-file (7zr-shell-quote-argument 7zr-current-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
       (unless (and
 	   (bound-and-true-p 7zr-active-document_hash-of-hash-file)
 	   (string= hash 7zr-active-document_hash-of-hash-file)  ; only load the hashtable if it has changed
@@ -3113,7 +3116,7 @@ STRING is the output line from PROC."
       (set (make-local-variable '7zr-active-document_original-version) 7zr-original-version)
       
       (shell-command (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument 7zr-archive-directory)(7zr-shell-quote-argument 7zr-archive-name) " " 7zr-prepend-to-notes-file (7zr-shell-quote-argument 7zr-current-original-version) 7zr-notes-file-extension))
-      (setq hash (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) 7zr-prepend-to-notes-file (7zr-shell-quote-argument 7zr-current-original-version) 7zr-notes-file-extension 7zr-sha1sum-post-command (7zr-awk-cmd-string 1)))))
+      (setq hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) 7zr-prepend-to-notes-file (7zr-shell-quote-argument 7zr-current-original-version) 7zr-notes-file-extension 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
 
       ;; (if (and
       ;; 	   (bound-and-true-p 7zr-active-document_hash-of-notes-file)
@@ -3165,7 +3168,7 @@ STRING is the output line from PROC."
 	      
 					; else check against hash
 
-	    (setq rev-hash (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) "rev" rev-pointer "_of_" (7zr-shell-quote-argument 7zr-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1)))))
+	    (setq rev-hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) "rev" rev-pointer "_of_" (7zr-shell-quote-argument 7zr-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
 	    (setq hash-from-table (gethash hash-rev-to-check-against 7zr-hasht))
 	    (string= rev-hash hash-from-table)
 
@@ -3287,7 +3290,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 ;	  (setq 7zr-patch-command-called-x-times (incf 7zr-patch-command-called-x-times))  ;debug
 	  (when 7zr-track-md5sum-hashes-p 
 	    (setq hash-from-table (gethash current-patch 7zr-hasht))
-	    (setq hash-from-file (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) 7zr-prepend-to-reconstruct_wip 7zr-sha1sum-post-command (7zr-awk-cmd-string 1)))))
+	    (setq hash-from-file (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) 7zr-prepend-to-reconstruct_wip 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
 	    (unless (string= hash-from-table hash-from-file)
 	      (message (concat "revision " current-patch  " has incorrect hash!"))
 	      )
@@ -4085,7 +4088,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 ;	    (with-current-buffer 7zr-active-document_buffer
 	  (setq 7zr-reconstruct-rev_hash (gethash 7zr-pointer-lastviewed 7zr-hasht))
 ;	      )	    
-	  (setq 7zr-file-rev_hash (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) "rev" 7zr-pointer-lastviewed "_of_" (7zr-shell-quote-argument 7zr-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1)))))
+	  (setq 7zr-file-rev_hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) "rev" 7zr-pointer-lastviewed "_of_" (7zr-shell-quote-argument 7zr-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
 	  (if (not (string= 7zr-file-rev_hash 7zr-reconstruct-rev_hash))
 		(error "revision hash doesnt match!"))
 	    ) ; when tracking md5sums, or sha1sums as the case may be
@@ -4798,10 +4801,11 @@ highlighting changes when reviewing revisions"
 	(shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " (7zr-shell-quote-argument 7zr-archive-directory)(7zr-shell-quote-argument 7zr-archive-name) " " (7zr-shell-quote-argument 7zr-temp-directory) (7zr-shell-quote-argument 7zr-original-version)))
 
        	; then create a hash file
-	
-	(setq tmphashvalue (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-temp-directory) (7zr-shell-quote-argument 7zr-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1)))))
-
 	(cd 7zr-temp-directory)
+	
+	(setq tmphashvalue (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument 7zr-original-version) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
+
+
 	(append-to-file (concat "(puthash \"" 7zr-original-version  "\" \"" tmphashvalue "\" 7zr-hasht)\n") nil (concat 7zr-prepend-to-hash-file 7zr-original-version))
 	(append-to-file (concat "(puthash \"0.0\" \"" tmphashvalue "\" 7zr-hasht)\n") nil (concat 7zr-prepend-to-hash-file 7zr-original-version))
 	(7zr-rename-file-if-exists   7zr-original-version  (concat 7zr-prepend-to-latest-revision 7zr-original-version) t)
@@ -4918,7 +4922,7 @@ highlighting changes when reviewing revisions"
 					; add an entry to the notes file
     (setq old_note (gethash (number-to-string 7zr-patch-number) 7zr-notestab))
     (setq add_to_notesfile_string (concat 
-			       "(puthash \"" (number-to-string 7zr-patch-number)   "\" \"Filename changed from " old_buffer_name " to " newname_sans_directory  " on " namechange_date-time_string "\n" old_note "\" 7zr-notestab)\n"
+			       "(puthash \"" (number-to-string 7zr-patch-number)   "\" \"Filename changed from " old_buffer_name " to " newname_sans_directory  " on " namechange_date-time_string " :" old_note "\" 7zr-notestab)\n"
 			       "(puthash \"c" (number-to-string 7zr-patch-number)   "\" \"1\" 7zr-notestab)\n"
 			       )
 	  )

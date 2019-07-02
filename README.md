@@ -8,33 +8,35 @@ Compatible with windows and linux, and probably mac.
  Wouldnt it be nice to be able to go back and double check to see
  exactly what you saved, when you saved it, in addition to perhaps
  what you may have accidentally deleted?  7z-revisions is now
- available, an essential #emacs #orgmode companion that does exactly
- that.  With the 7z-revisions-mode minor mode, the current buffer is
- saved to a 7-zip archive of the same name, whenever a save-buffer
- command is issued.  A time-stamp in the form of MMDDYY-HHMMSS is
- appended to the archived file.  If the .7z archive file already
- exists then it incrementally saves the latest revision by adding a
- new patch to the archive.  Optionally, the .7z extension can be
- altered to something else, such as .8z for example, by setting the
- global variable 7zr-archive-extension to ".8z".  Additionally, the
- function 7z-revisions can be called interactively to view or
- consolidate past revisions in the archive, providing word by word
- differential highlighting.  In addition, syntax coloring is applied
- when viewing raw diff files.<br/>
+ available, an indispensable #emacs #orgmode companion that does
+ exactly that.  When in 7z-revisions-mode, the diff of the current
+ buffer with respect to the last time it was saved, is saved to a
+ 7-zip archive of the same name, whenever a save-buffer command is
+ issued, incrementally saving the latest revision by adding a new
+ patch to the archive.  Optionally, the .7z extension can be altered
+ to something else, such as .8z for example, by setting the global
+ variable 7zr-archive-extension to ".8z".  Additionally, the function
+ 7z-revisions can be called interactively to view or consolidate past
+ revisions in the archive, providing word by word differential
+ highlighting.  In addition, syntax coloring is applied when viewing
+ raw diff files.<br/>
 
- If your document anywhere contains a tag text, such as
- 7z-revisions.el_rev= followed by nothing or any number, then upon
- execution of the function 7zr-update-7z-revisions-tags-in-text, the
- highest revision number, incremented by 1, will be inserted to the
- end of that tag, in this case at the end of that equals sign,
- replacing the previous number, if present.<br/> 
+ If your document anywhere contains a specific tag in the text, such
+ as 7z-revisions.el_rev= followed by nothing or any number, then upon
+ execution of the function 7zr-update-7z-revisions-tags-in-text, which
+ is automatically called upon save if the
+ 7zr-auto-update-tags-in-text-p variable is set to t, the highest
+ revision number, incremented by 1, will be inserted to the end of
+ that tag, in this case at the end of that equals sign, replacing the
+ previous number, if present.<br/>
+ 
  A tag of, for instance, 7zr-revisions.el_directory-of-archive=../ will
  specify the parent directory as the directory where the archive
- resides, etc.<br/>
+ resides, etc.<br/> 
  For another example, 7z-revision.el_sha1-of-last-revision= causes the
  insertion of the sha1sum hash value of the last revision to be placed
  after the tag, which e.g. in a blockchain sort of way, establishes a
- forensically authentic journal.<br/>
+ forensically authentic journal.<br/> 
  For your convenience, the tags can be inserted into the document or
  into the metadata file using the
  7zr-select-tag-to-insert-into-document function.<br/>
