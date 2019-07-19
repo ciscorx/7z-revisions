@@ -22,7 +22,7 @@ Compatible with windows and linux, and probably mac.
  raw diff files.<br/>
 
  If your document anywhere contains a specific tag in the text, such
- as 7z-revisions.el_rev= followed by nothing or any number, then upon
+ as 7z-revisions.el_rev=20.0 followed by nothing or any number, then upon
  execution of the function 7zr-update-7z-revisions-tags-in-text, which
  is automatically called upon save if the
  7zr-auto-update-tags-in-text-p variable is set to t, the highest
@@ -63,11 +63,12 @@ Compatible with windows and linux, and probably mac.
  F2 3 = update tags,<br/>
  F2 CTRL-s = update tags & save buffer,<br/>
  F2 l = goto line last changed,<br/>
- c = when was line of point last changed,<br/>
+ F2 p = when was line of point last changed,<br/>
  F2 s = select tag to insert,<br/>
- F2 n = enter a revision note,<br/>
+ F2 c = enter a revision note,<br/>
+ F2 CTRL-c = view/edit raw notes file,<br/>
  F2 CTRL-r = rename document & archive,<br/>
- F2 e = edit metafile (created-by-message file),<br/>
+ F2 CTRL-f = edit metafile (created-by-message file),<br/>
  F2 ` = exit 7z-revisions-mode.<br/>
 
 
@@ -77,24 +78,24 @@ Compatible with windows and linux, and probably mac.
  c = consolidate region,<br/>
  g = prompt for entering a date, or date-time, and then goto that date-time inputted,<br/>
  h = toggle highlight differences,<br/>
- j = view the raw diff file at point,<br/>
+ u = view the diff file at point,<br/>
  a = view all selected diff files in one buffer,<br/>
  \# = prompt input of sha1 checksum and search for it<br/>
- z = edit revision note
+ c = edit revision note
 
 ### While viewing individual past revisions:<br/>
  q = quit to 7z-revisions buffer,<br/>
  n = next revision,<br/>
  p = previous revision,<br/> 
- j = view the raw diff file,<br/>
+ u = view the diff file,<br/>
  g = Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions.<br/>
- z = edit revision note
+ 
 
 ### When highlight changes is enabled in view mode:<br/>
  d = jump to next difference/change,<br/> 
  e = jump to previous change
 
-### While viewing a raw diff file:<br/>
+### While viewing a diff file:<br/>
  q = quit to 7z-revisions buffer,<br/>
  n = next diff file,<br/>
  p = previous diff file,<br/>
@@ -102,7 +103,7 @@ Compatible with windows and linux, and probably mac.
  d = jump to next change hunk,<br/>
  e = jump to previous change hunk, <br/>
  g = Quit 7z-revisions and then try to goto the line in your document corresponding to the change hunk that was at point.<br/>
- z = edit revision note
+ 
 
  There are also some functions in the menu which provide for
  consoldating the current days worth of changes, or last hour
@@ -131,7 +132,7 @@ Compatible with windows and linux, and probably mac.
 
  - File names must contain at least 1 alphabetical character or
  underscore or hyphen, and in this regard, cannot take the form of a
- real number, e.g. "1.0".  (let's call this a feature)
+ real number, e.g. "1.0", and errors in such event.  (let's call this a feature for now)
  - Each archive can only track one file.  (let's call this a
  feature also)
  - Words added to beginning of line additionally highlight following
