@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 2.1
-;; commit date: 2019-08-08
+;; version: 2.2
+;; commit date: 2019-08-14
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -105,9 +105,9 @@
 ;; Required features:
 ;;   hl-line+.el
 ;;   p7zip
-;;   diffutils  ( just the patch and diff commands )
+;;   diffutils  ( just the diff command )
 ;;
-;; When running on windows, access to additional dos commands is necessary, such as patch, diff, awk, fciv, and optionally grep.
+;; When running on windows, access to additional dos commands is necessary, such as diff, awk, fciv, and optionally grep.
 ;;   Install diffutils for windows:
 ;;     http://gnuwin32.sourceforge.net/packages/diffutils.htm and then
 ;;     append C:\Program Files\GnuWin32\bin, or whatever directory
@@ -143,7 +143,7 @@
 
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 2.1)
+(setq 7z-revisions-version 2.2)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit
 (setq 7zr-archive-extension ".7z")
@@ -284,6 +284,12 @@
 	)
       )
 
+(defun 7zr-reconstruct-rev-from-patches ( rev )  ; default for linux and mac os
+  "This just calls 7zr-reconstruct-rev-from-patches_LINUX"
+;   "This just calls 7zr-reconstruct-rev-from-patches_MSWINDOWS"
+  (7zr-reconstruct-rev-from-patches_LINUX rev)
+;  (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
+  )
 
 (setq 7zr-mswindows-requirements-failed nil)
 (cond
@@ -307,33 +313,36 @@
   (defun 7zr-awk-cmd-string ( fieldnum )
     (concat " | awk \"{print $" (number-to-string fieldnum) "}\"")
     )
-  )
+  (defun 7zr-reconstruct-rev-from-patches ( rev )
+  "This just calls 7zr-reconstruct-rev-from-patches_MSWINDOWS"
+    (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
+    ))
+  
  ((string-equal system-type "darwin") ; Mac OS X
   (setq 7zr-temp-directory 7zr-temp-directory-apple)
   (setq 7zr-sha1sum-command 7zr-sha1sum-command-linux)
   (setq 7zr-sha1sum-post-command 7zr-sha1sum-post-command-linux)
   (defun 7zr-awk-cmd-string ( fieldnum )
     (concat " | awk '{print $" (number-to-string fieldnum) "}'")
-    )
-  )
- 
+    ))
+
  ((string-equal system-type "gnu/linux") ; linux
   (setq 7zr-sha1sum-command 7zr-sha1sum-command-linux)
   (setq 7zr-sha1sum-post-command 7zr-sha1sum-post-command-linux)
   (setq 7zr-temp-directory 7zr-temp-directory-linux)
   (defun 7zr-awk-cmd-string ( fieldnum )
     (concat " | awk '{print $" (number-to-string fieldnum) "}'")
-    )
-  )
+    ))
+
  (t  ; default os
   (setq 7zr-sha1sum-command 7zr-sha1sum-command-linux)
   (setq 7zr-sha1sum-post-command 7zr-sha1sum-post-command-linux)
   (setq 7zr-temp-directory 7zr-temp-directory-linux)
   (defun 7zr-awk-cmd-string ( fieldnum )
     (concat " | awk '{print $" (number-to-string fieldnum) "}'")
-    )
-  )
+     ))
  )
+ 
 
 
 ; (add-hook 'after-change-major-mode-hook '7zr-toggle-highlight)
@@ -929,7 +938,7 @@ where it lies."
   "Deletes all revision patch files in region, except for the
 lowest level patch file and the highest level patch file, which
 is updated with a new diff to reflect all changes represented by
-the patch files to be deleted in the region."
+the patch files to be deleted in the region, the revision notes of which are all concatonated together and stored under the lowest level revision in the range."
 ; the files to be diffed are from and to, but from patch will
 ; not be deleted
 
@@ -4049,7 +4058,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
   )
 
 
-(defun 7zr-reconstruct-rev-from-patches (rev)
+(defun 7zr-reconstruct-rev-from-patches_MSWINDOWS (rev)
   "This function is called from 7zr-summary-view-revision, after running
  7z-revisions, once a line item is selected and the enter key is
  pressed.   It calls an elisp implementation of the patch shell command."
@@ -4420,7 +4429,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
   )
 
 
-(defun 7zr-reconstruct-rev-from-patches_BACKUP (rev)
+(defun 7zr-reconstruct-rev-from-patches_LINUX (rev)
   "Original Backup copy: This function is called from 7zr-summary-view-revision, after running
  7z-revisions, once a line item is selected and the enter key is
  pressed.  The difference between this function and the other of similar naming is that this one uses the `patch' shell command whereas the other uses an elisp variant of it."

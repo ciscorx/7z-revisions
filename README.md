@@ -22,7 +22,7 @@ Compatible with windows and linux, and probably mac.
  raw diff files.<br/>
 
  If your document anywhere contains a specific tag in the text, such
- as 7z-revisions.el_rev=20.0 followed by nothing or any number, then upon
+ as 7z-revisions.el_rev= followed by nothing or any number, then upon
  execution of the function 7zr-update-7z-revisions-tags-in-text, which
  is automatically called upon save if the
  7zr-auto-update-tags-in-text-p variable is set to t, the highest
@@ -116,7 +116,7 @@ Compatible with windows and linux, and probably mac.
 ## Required features:<br/>
    hl-line+.el,<br/>
    p7zip,<br/>
-   diffutils  ( just the patch and diff commands )
+   diffutils  ( just the diff command )
 
 ### On Windows
  When running on Microsoft Windows, access to additional dos commands becomes necessary, such as diff, awk, fciv, and optionally grep.<br/>
