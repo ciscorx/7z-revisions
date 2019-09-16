@@ -36,11 +36,12 @@ Compatible with windows and linux, and probably mac.
  For another example, 7z-revision.el_sha1-of-last-revision= causes the
  insertion of the sha1sum hash value of the last revision to be placed
  after the tag, which e.g. in a blockchain sort of way, establishes a
- forensically authentic journal.<br/> 
+ forensically authentic journal.<br/>
  For your convenience, the tags can be inserted into the document or
  into the metadata file using the
- 7zr-select-tag-to-insert-into-document function.<br/>
-
+ 7zr-select-tag-to-insert-into-document function.  However, the tag which displays the current revision must be present in the document, or else none of the other tags will work.<br/>
+ All tags must be present in the first 7777 characters of the document, or they will not work.<br/>
+ 
 ## Commands<br/>
 ### Some useful commands when editing your document:<br/>
 **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
@@ -57,7 +58,7 @@ Compatible with windows and linux, and probably mac.
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions<br/>
      
-### When **7z-revisions-mode** is active, the following two sequence key bindings take effect:<br/>
+### When **7z-revisions-mode** is active, the following two sequence key bindings take effect while editing your document:<br/>
  F2 F3 = 7z-revisions,<br/>
  F2 t = auto update tags,<br/>
  F2 3 = update tags,<br/>
