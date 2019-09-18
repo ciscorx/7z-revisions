@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 2.3
-;; commit date: 2019-09-16
+;; version: 2.4
+;; commit date: 2019-09-17
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -150,7 +150,7 @@
 
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 2.3)
+(setq 7z-revisions-version 2.4)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-archive-extension ".7z")
@@ -298,7 +298,7 @@
 
 (defun 7zr-reconstruct-rev-from-patches ( rev )  ; default for linux and mac os
 ;  "This just calls 7zr-reconstruct-rev-from-patches_LINUX"
-   "This just calls 7zr-reconstruct-rev-from-patches_MSWINDOWS"
+   "This function calls 7zr-reconstruct-rev-from-patches_MSWINDOWS when running under mswindows or when viewing a revision of a DOS buffer-file-coding-system encoded file.  Otherwise, it calls 7zr-reconstruct-rev-from-patches_LINUX"
 
    (if (or 
 	7zr-active-document_buffer_is_msdos_p 
@@ -3443,7 +3443,7 @@ overwritep option is ignored for now."
   "This is an elisp implementation of the unix patch -p0 command, which only works on diffs of unified format, created by the unix command diff -Na.  Returns the new calculated line number."
 
   (let ( (diff-buffer (current-buffer)) diff-string (linenum_offset 0) (hunknum 0) (hunknum-that-changed-linenum 0) last_match_pos current_match_pos)
-    (switch-to-buffer diff-buffer)  ; debug
+    (set-buffer diff-buffer)
 
     (goto-char (point-max))
     (while (re-search-backward 7zr-match-diff-standard-line nil t)
@@ -3528,7 +3528,7 @@ overwritep option is ignored for now."
 	
 	(beginning-of-line)  
 	(set-buffer wip_buffer)
-	(switch-to-buffer wip_buffer)  ; debug
+	(set-buffer wip_buffer)
 	(goto-char (point-min))
 	(forward-line (1- a-begin))               ;; goto line in a
 ;	(when (not (string= diff-type "d"))	  ;; "c" and "a" are really just the same
@@ -3544,7 +3544,6 @@ overwritep option is ignored for now."
 ;	(mapcar 'insert b-string_stack)          ;; insert lines from b
 	(mapcar #'(lambda ( x ) (insert x) (7zr-newline)) (nreverse b-string_stack))
 	(set-buffer diff-buffer)
-	(switch-to-buffer diff-buffer)     ; debug
 	(goto-char last_match_pos)
 	) ; let*
       ) ; while 
