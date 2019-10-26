@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 2.4
-;; commit date: 2019-09-17
+;; version: 2.5
+;; commit date: 2019-10-26
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -76,8 +76,8 @@
 ;; tags, F2 3 = update tags, F2 CTRL-s = update tags & save buffer, F2
 ;; l = goto line last changed, F2 p = when was line of point last
 ;; changed, F2 s = select tag to insert, F2 CTRL-r = rename document &
-;; archive, F2 C-f = edit metafile (created-by-message file), F2 ` =
-;; exit 7z-revisions-mode.
+;; archive, F2 C-d = set default archive directory, F2 C-f = edit
+;; metafile (created-by-message file), F2 ` = exit 7z-revisions-mode.
 ;;
 ;; When 7z-revisions is called, the following key bindings take
 ;;   effect: Enter = view the selected revision, j = view raw diff
@@ -134,23 +134,26 @@
 ;;
 ;; Known Bugs:
 ;;
+;; - Does not work when a file is opened via tramp
 ;; - File names must contain at least 1 alphabetical character or
 ;;     underscore or hyphen, and in this regard, cannot take the form
-;;     of a real number, e.g. "1.0".  (let's call this a constraint)
+;;     of a real number, e.g. "1.0".  (let's call this a constraint
+;;     for now)
 ;; - Each archive can only track one file.  (let's call this a
 ;;     constraint also)
 ;; - Words added to beginning of line additionally highlight following
 ;;     word green. In some cases highlighting is off by 1 word.
 ;; 
 ;;  This program was written using emacs 23.3.1 on ubuntu 12.04, but
-;;     is compatible with windows-xp and probably windows 7, and likely mac.
-;;
+;;     is compatible with windows-xp and probably windows 7, and
+;;     likely mac.
+
 ;;; 7zr-summary-mode.el begins ------------------------
 
 
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 2.4)
+(setq 7z-revisions-version 2.5)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-archive-extension ".7z")
@@ -194,7 +197,7 @@
 (setq 7zr-prepend-to-diff-file "diff_")
 (setq 7zr-prepend-to-latest-revision "7zr-latest-")
 (setq 7zr-prepend-to-current-version "7zr-current-")   ; not used
-(setq 7zr-prepend-to-original-version "7zr-original-version-")   ; not used
+(setq 7zr-prepend-to-original-version "7zr-original-version-")   ; not used yet
 (setq 7zr-prepend-to-notes-file "7zr-notes-")
 (setq 7zr-notes-file-extension ".7zrn") 
 (setq 7zr-prepend-to-hash-file "7zr-sha1-")
@@ -206,8 +209,8 @@
 (setq 7zr-summary-rev-at-point "")
 (setq 7zr-summary-reconst-last "")  
 (setq 7zr-archive-created_datetime "")
-(setq 7zr-archive-created-by-message "7z-revisions.el created this archive")  ;; this string should probably not end in a file extension which has a 7zr-turn-on-7zr-revisions-mode add-hook, or it will cause emacs to crash when creating a new archive  
-; (defvar 7zr-hasht (make-hash-table :size 20000 :test 'equal))
+(setq 7zr-archive-created-by-message "7z-revisions.el created this archive")  ;; this string should probably not end in a file extension which has a 7zr-turn-on-7zr-revisions-mode hook associated with it, or it will cause emacs to crash when creating a new archive  
+; (defvar 7zr-hasht (make-hash-table :size 20000 :test 'equal))  ; this must instead be a buffer local variable
 (setq 7zr-summary-last-line 0)  ; line number of revision in the 7z-revisions display, not to be mistaken for the last line number of point in the document ( which would be related to 7zr-view-last-pos or 7zr-view-last-line)
 (setq 7zr-view-last-column 0)
 (setq 7zr-view-last-line 0)  ; line number of point when 7z-revisions is invoked
@@ -532,28 +535,35 @@ Turning on 7z-summary mode runs the normal hook `7zr-summary-mode-hook'."
     (define-key map (kbd "<f2> c") '7zr-notes-annotation)
     (define-key map (kbd "<f2> C-r") '7zr-rename-document-and-its-archive)
     (define-key map (kbd "<f2> C-f") '7zr-archive-edit-metadata-file)
+;    (define-key map (kbd "<f2> C-d") '7zr-archive-set-relative-directory)    
     (define-key map [menu-bar 7z-revisions-mode]
       (cons "7z-revisions" (make-sparse-keymap "7z-revisions")))
     (define-key map [menu-bar 7z-revisions-mode exit-7z-revisions-mode]
       '(menu-item "Exit 7z-revisions-mode" 7z-revisions-mode
                   :help "exits mode"))
-   (define-key map [menu-bar 7z-revisions-mode sep5] menu-bar-separator)
-
+    (define-key map [menu-bar 7z-revisions-mode sep6] menu-bar-separator)
+    
     (define-key map [menu-bar 7z-revisions-mode edit-metadata-file]
       '(menu-item "Edit Metafile" 7zr-archive-edit-metadata-file
-                  :help "Edit the Metadata File (created-by-message file)."))
-
+		  :help "Edit the Metadata File (created-by-message file) associated with this document."))
+   
+    (define-key map [menu-bar 7z-revisions-mode sep5] menu-bar-separator)
+    
+    ;; (define-key map [menu-bar 7z-revisions-mode set-archive-dir]
+    ;;   '(menu-item "Set Archive Dir" 7zr-archive-set-relative-directory
+    ;; 		  :help "Set relative archive directory."))
+   
     (define-key map [menu-bar 7z-revisions-mode rename-document-and-its-archive]
       '(menu-item "Rename Document & Archive" 7zr-rename-document-and-its-archive
-                  :help "Rename this document, along with its archive; use with caution."))
-
+		  :help "Rename this document, along with its archive; use with caution."))
+    
     (define-key map [menu-bar 7z-revisions-mode modify-raw-notes-file]
       '(menu-item "Modify Raw Notes File" 7zr-modify-raw-notes-file
-                  :help "Use with caution."))
-
+		  :help "Use with caution."))
+    
     (define-key map [menu-bar 7z-revisions-mode modify-raw-hash-file]
       '(menu-item "Modify Raw Hash File" 7zr-modify-raw-hash-file
-                  :help "Use with caution.  Perhaps best not to use at all!"))
+		  :help "Use with caution.  Perhaps best not to use at all!"))
     (define-key map [menu-bar 7z-revisions-mode sep4] menu-bar-separator)
     (define-key map [menu-bar 7z-revisions-mode edit-notes-annotation]
       '(menu-item "Notes Annotation" 7zr-notes-annotation
@@ -1896,6 +1906,23 @@ text or number values"
     (nreverse ret)))
 
 
+(defun 7zr-summary-view-raw-diff-file-highlight ()
+  (save-excursion
+    (goto-char (point-min))
+    (while (re-search-forward "^<" nil t) 
+      (put-text-property (match-beginning 0) (match-end 0) 'font-lock-face '(:background "red" :foreground "black"))
+
+      )
+    (goto-char (point-min))
+    (while (re-search-forward "^>" nil t) 
+      (put-text-property (match-beginning 0) (match-end 0) 'font-lock-face '(:background "green" :foreground "black"))
+
+      )
+    )
+  )
+		       
+
+
 (defun 7zr-summary-view-raw-diff-file ()
   "View the raw diff file for selected revision number.
 This function is called from a key binding of j in 7zr-summary-mode,
@@ -1953,6 +1980,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 	  
       (beginning-of-buffer)
 ;	   (show-point-mode t)
+      (7zr-summary-view-raw-diff-file-highlight)
       (7zr-view-raw-diff-file-mode 1)
       (set-buffer-modified-p nil)
       (toggle-read-only 1)
@@ -2018,7 +2046,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 ;;;;;; 7z-revisions.el begins ---- ----------------------------------
 
 (require 'hl-line+)
-(setq debug-on-error t)
+;(setq debug-on-error t)
 ;(hl-line-mode 0)
 (defgroup 7z-revisions-mode nil
   "Customization options for `7z-revisions-mode'."
@@ -4061,7 +4089,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 	    (shell-command (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name)) " " (7zr-shell-quote-argument (concat 7zr-prepend-to-latest-revision  7zr-original-version)))) 
 	    (setq line_not_changed t)
 	    (setq hunk_that_changed_line 0)
-
+	    (message "This might take a while...")
 	    (while line_not_changed
 
 	      (if  	  (looking-at "\\([0-9]+\.[0-9]+\\)")
@@ -5764,11 +5792,11 @@ revisions.  An unintended consequence of running this function is that it causes
 			    ) ; progn2 ends
 					; else
 ;			(pop beginning_point_list)
-			(error "if2")
+		;	(error "if2")
 			) ; if2 ends
 		      ) ; progn ends
 					; else
-		  (error "if")
+;		  (error "if")
 		  ) ; if ends
 ;	 )
 		) difference_ranges)  ; mapc end
@@ -6342,6 +6370,17 @@ Tries to be version control aware."
     (7zr-get-highest-rev-and-original-version)
       
     (7zr-archive-edit-metadata-file 7zr-prepend-to-hash-file 7zr-original-version)
+    )
+  )
+
+(defun 7zr-archive-set-relative-directory ()
+  (interactive)
+  (let (inputted_data)
+    (setq inputted_data (read-string "Enter new default relative directory of archive:"))
+    (when (yes-or-no-p (concat "Change relative directory from " 7zr-archive-directory_default " to " inputted_data " really?"))
+      
+      (setq 7zr-archive-directory_default inputted_data)
+      )
     )
   )
 

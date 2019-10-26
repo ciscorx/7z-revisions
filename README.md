@@ -130,6 +130,7 @@ Compatible with windows and linux, and probably mac.
  
 ## Known Bugs:
 
+ - Does not work when a file is opened via tramp
  - File names must contain at least 1 alphabetical character or
  underscore or hyphen, and in this regard, cannot take the form of a
  real number, e.g. "1.0", and errors in such event.  (let's call this a feature for now)
@@ -139,4 +140,4 @@ Compatible with windows and linux, and probably mac.
      word green. In some cases highlighting is off by 1 word.
 
   This program was written using emacs 23.2.1 on ubuntu 12.04, but is
-    compatible with windows-xp and probably windows 7
+    compatible with windows-xp, windows 7 and probably mac.
