@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 2.5
-;; commit date: 2019-10-26
+;; version: 2.6
+;; commit date: 2019-11-14
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -45,7 +45,7 @@
 ;; causes the insertion of the sha1sum hash value of the last revision
 ;; to be placed after the tag, in this case appearing after the equals
 ;; sign, which e.g. in a blockchain sort of way, establishes a
-;; forensically authentic journal.
+;; forensically authentic journal to show ones work.
 ;;
 ;; For your convenience, the tags can be inserted into the document or
 ;; into the metadata file (the created-by-message file) using the
@@ -55,10 +55,11 @@
 ;; All tags must be present in the first 7777 characters of the
 ;; document, or they will not work.<br/>
 ;; 
-;; Some useful commands for when editing your document:
+;; Some useful commands for when editing your document (these are also menu options):
 ;;     M-x 7zr-line-last-changed-on
 ;;     M-x 7zr-goto-line-of-last-revision
 ;;     M-x 7zr-create-file-for-archive-created-by-message
+;;     M-x 7zr-input-archive-directory
 ;;     M-x 7zr-archive-edit-metadata-file
 ;;     M-x 7zr-archive-save-metadata-file
 ;;     M-x 7zr-select-tag-to-insert-into-document
@@ -76,7 +77,7 @@
 ;; tags, F2 3 = update tags, F2 CTRL-s = update tags & save buffer, F2
 ;; l = goto line last changed, F2 p = when was line of point last
 ;; changed, F2 s = select tag to insert, F2 CTRL-r = rename document &
-;; archive, F2 C-d = set default archive directory, F2 C-f = edit
+;; archive, F2 C-d = input (set) default archive directory, F2 C-f = edit
 ;; metafile (created-by-message file), F2 ` = exit 7z-revisions-mode.
 ;;
 ;; When 7z-revisions is called, the following key bindings take
@@ -153,7 +154,7 @@
 
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 2.5)
+(setq 7z-revisions-version 2.6)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-archive-extension ".7z")
@@ -230,7 +231,6 @@
 (setq 7zr-archive-directory "")  ;; for internal use only, intial value is overwritten
 (setq 7zr-directory-of-document "")  ;; not implemented yet
 (setq 7zr-lastviewed_saved "")
-
 (setq 7zr-revisions_tmpbuffer "")  ;; name of buffer that lists all revisions
 (setq 7zr-revisions_lastbuffer "")  ;; name of the buffer from which 7z-revisions was called
 (setq 7zr-disable-summary-goto-sha1 nil)  ;; used for windows compatibility
@@ -531,11 +531,12 @@ Turning on 7z-summary mode runs the normal hook `7zr-summary-mode-hook'."
     (define-key map (kbd "<f2> p") '7zr-line-last-changed-on)
     (define-key map (kbd "<f2> s") '7zr-select-tag-to-insert-into-document)
     (define-key map (kbd "<f2> C-h") '7zr-modify-raw-hash-file)
+;    (define-key map (kbd "<f2> C-o") '7zr-order-raw-notes-file)    
     (define-key map (kbd "<f2> C-c") '7zr-modify-raw-notes-file)    
     (define-key map (kbd "<f2> c") '7zr-notes-annotation)
     (define-key map (kbd "<f2> C-r") '7zr-rename-document-and-its-archive)
     (define-key map (kbd "<f2> C-f") '7zr-archive-edit-metadata-file)
-;    (define-key map (kbd "<f2> C-d") '7zr-archive-set-relative-directory)    
+    (define-key map (kbd "<f2> C-d") '7zr-input-archive-directory)    
     (define-key map [menu-bar 7z-revisions-mode]
       (cons "7z-revisions" (make-sparse-keymap "7z-revisions")))
     (define-key map [menu-bar 7z-revisions-mode exit-7z-revisions-mode]
@@ -549,9 +550,9 @@ Turning on 7z-summary mode runs the normal hook `7zr-summary-mode-hook'."
    
     (define-key map [menu-bar 7z-revisions-mode sep5] menu-bar-separator)
     
-    ;; (define-key map [menu-bar 7z-revisions-mode set-archive-dir]
-    ;;   '(menu-item "Set Archive Dir" 7zr-archive-set-relative-directory
-    ;; 		  :help "Set relative archive directory."))
+    (define-key map [menu-bar 7z-revisions-mode set-archive-dir]
+      '(menu-item "Set Archive Dir" 7zr-input-archive-directory
+    		  :help "Set relative archive directory."))
    
     (define-key map [menu-bar 7z-revisions-mode rename-document-and-its-archive]
       '(menu-item "Rename Document & Archive" 7zr-rename-document-and-its-archive
@@ -1216,7 +1217,8 @@ the patch files to be deleted in the region, the revision notes of which are all
 	    ) ;; let
 	  (switch-to-buffer 7zr-all-diffs-buffer)
 	  (beginning-of-buffer)
-	  (set-buffer-modified-p nil)
+	  (7zr-summary-view-raw-diff-file-highlight)
+	  (set-buffer-modified-p nil)	  
 	  (toggle-read-only 1)
 	  (when (setq major-mode-of-file (7zr-find-auto-mode))       ;; apply auto-mode 
 	    (funcall (symbol-value 'major-mode-of-file)))
@@ -2114,12 +2116,13 @@ See help of `format-time-string' for possible replacements")
   (interactive)
   (7zr-populate-initial-global-vars)
   (7zr-get-highest-rev-and-original-version)
-  
+
   (let (7zr-create-blank-file-tmpbuffer 7zr-save-current-buffer archive_name document_name)
+
     (setq 7zr-save-current-buffer (current-buffer))
 					;    (setq 7zr-create-blank-file-tmpbuffer (generate-new-buffer-name (concat "7zr-create-blank-file_of_" (file-name-nondirectory (buffer-file-name (current-buffer))) )))
     (setq document_name 7zr-buffer)
-    (setq archive_name (concat 7zr-archive-prefix document_name 7zr-archive-extension))
+    (setq archive_name (concat 7zr-archive-directory 7zr-archive-prefix document_name 7zr-archive-extension))
     
     (setq 7zr-create-blank-file-tmpbuffer 7zr-archive-created-by-message)
     (if (file-exists-p archive_name)
@@ -2586,7 +2589,10 @@ See help of `format-time-string' for possible replacements")
   (setq 7zr-buffer (buffer-name (current-buffer)))
 
 
-  (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
+  (if (or (string= 7zr-archive-directory_default "") (string= 7zr-archive-directory_default "."))
+      (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
+    (7zr-set-archive-directory 7zr-archive-directory_default)
+    )    
   (setq 7zr-archive-directory-full 7zr-archive-directory)
   (setq 7zr-revisions_original_buffer (current-buffer))
 
@@ -5055,12 +5061,20 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
   (goto-char (point-min))
   )
 
+(defun 7zr-set-archive-directory( target_directory )
+  (let ((saved_dir (7zr-pwd)))
+    (cd target_directory)
+    (setq 7zr-archive-directory (7zr-pwd))
+    (cd saved_dir)
+    )
+  )
+    
 (defun 7zr-parse-standard-diff-type ( parse-ancestorp )
   "This function returns a list containing the beginning point of
 every difference and is only used for highlighting changes when
 reviewing revisions.  An unintended consequence of running this function is that it causes the line of the highlighted text to become untabified when calling the function (7zr-map-difference-ranges-to-point-ranges).  This function is called from (7zr-view-highlight-changes)"
   (setq 7zr-parse-standard-diff-type_diff_list '())
-
+(message (concat "archive directory: " 7zr-active-document_archive-directory-full))
 ;  (cd 7zr-archive-directory-full)
   (save-window-excursion
     (if parse-ancestorp
@@ -6360,6 +6374,11 @@ Tries to be version control aware."
     )
   )
 
+
+(defun 7zr-order-raw-notes-file ()
+  (interactive)
+  )
+
 (defun 7zr-modify-raw-hash-file ()
   "Use with caution.  Actually should not use at all."
   (interactive)
@@ -6373,13 +6392,14 @@ Tries to be version control aware."
     )
   )
 
-(defun 7zr-archive-set-relative-directory ()
+(defun 7zr-input-archive-directory ()
   (interactive)
   (let (inputted_data)
     (setq inputted_data (read-string "Enter new default relative directory of archive:"))
     (when (yes-or-no-p (concat "Change relative directory from " 7zr-archive-directory_default " to " inputted_data " really?"))
       
       (setq 7zr-archive-directory_default inputted_data)
+      (7zr-set-archive-directory inputted_data)
       )
     )
   )

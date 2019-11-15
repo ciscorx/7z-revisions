@@ -36,7 +36,7 @@ Compatible with windows and linux, and probably mac.
  For another example, 7z-revision.el_sha1-of-last-revision= causes the
  insertion of the sha1sum hash value of the last revision to be placed
  after the tag, which e.g. in a blockchain sort of way, establishes a
- forensically authentic journal.<br/>
+ forensically authentic journal to show ones work.<br/>
  For your convenience, the tags can be inserted into the document or
  into the metadata file using the
  7zr-select-tag-to-insert-into-document function.  However, the tag which displays the current revision must be present in the document, or else none of the other tags will work.<br/>
@@ -46,6 +46,7 @@ Compatible with windows and linux, and probably mac.
 ### Some useful commands when editing your document:<br/>
 **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
 **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associated with the first hunk of the last changes<br/>
+**M-x** **7zr-input-archive-directory**<br/>
 **M-x** **7zr-archive-edit-metadata-file**<br/>
 **M-x** **7zr-archive-save-metadata-file**<br/>
 **M-x** **7zr-select-tag-to-insert-into-document**<br/> 
@@ -70,6 +71,7 @@ Compatible with windows and linux, and probably mac.
  F2 CTRL-c = view/edit raw notes file,<br/>
  F2 CTRL-r = rename document & archive,<br/>
  F2 CTRL-f = edit metafile (created-by-message file),<br/>
+ F2 CTRL-d = input (set) default archive directory,<br/>
  F2 ` = exit 7z-revisions-mode.<br/>
 
 
