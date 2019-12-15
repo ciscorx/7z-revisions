@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 2.6
-;; commit date: 2019-11-14
+;; version: 2.7
+;; commit date: 2019-12-15
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -154,7 +154,7 @@
 
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 2.6)
+(setq 7z-revisions-version 2.7)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-archive-extension ".7z")
@@ -1312,7 +1312,8 @@ what format will be outputted."
   (set (make-local-variable '7zr-active-document_buffer_is_msdos_p) 7zr-buffer_is_msdos_p)
   (set (make-local-variable '7zr-active-document_archive-name) 7zr-archive-name)
   (set (make-local-variable '7zr-active-document_archive-directory) 7zr-archive-directory)
-  (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory-full)
+  (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory)
+;  (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory-full)
   (set (make-local-variable '7zr-active-document_archive-prefix) 7zr-archive-prefix)
   (set (make-local-variable '7zr-active-document_patch-number) 7zr-patch-number)
   (set (make-local-variable '7zr-active-document_original-version) 7zr-original-version)
@@ -1384,7 +1385,7 @@ what format will be outputted."
 	 (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" 7zr-original-version))
 	 (7zr-set-some-buffer-local-vars "7zr-summary-view-revision" 7zr-last-buffer)
 	 (set (make-local-variable '7zr-window) "7zr-summary-view-revision")
-	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory-full)
+	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory)
 	 (when 7zr-view_highlightp
 	   (7zr-view-highlight-changes nil t)
 	   )
@@ -1412,7 +1413,7 @@ what format will be outputted."
 	   (7zr-goto-last-line-column)
 	     )  
 	 (7zr-set-some-buffer-local-vars "7zr-summary-view-revision" 7zr-last-buffer)
-	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory-full))
+	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory))
 
 
 	; viewing last revision
@@ -1435,7 +1436,7 @@ what format will be outputted."
 
 
 	 (7zr-set-some-buffer-local-vars "7zr-summary-view-revision" 7zr-last-buffer)
-	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory-full)
+	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory)
          nil
 	 (when 7zr-view_highlightp	     
 ;	   (7zr-parse-standard-diff-type t)
@@ -1457,7 +1458,7 @@ what format will be outputted."
 ;	     )  
 
 	 (7zr-set-some-buffer-local-vars "7zr-summary-view-revision" 7zr-last-buffer)
-	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory-full))
+	 (set (make-local-variable '7zr-active-document_archive-directory-full) 7zr-archive-directory))
 	   
 	(t nil)
 	)
@@ -1857,7 +1858,7 @@ This function is called by (7zr-view-raw-diff-quit_then_view_revision), (7zr-sum
        )
       (message "Cannot save raw diff file from here")
 					; else
-    (let ((save_pwd (7zr-pwd)) rev_string)
+    (let ((save_pwd default-directory) rev_string)
       (when (bound-and-true-p 7zr-active-document_7zr-summary-rev-at-point)
 	(setq rev_string 7zr-active-document_7zr-summary-rev-at-point)
 	(rename-file (buffer-name (current-buffer)) rev_string)
@@ -2578,29 +2579,19 @@ See help of `format-time-string' for possible replacements")
 
  
 (defun 7z-revisions ()
-  "This function finds the 7zr-original-version variable and displays all the revisions in an interactive buffer, which is stored in the variable 7zr-revisions_tmpbuffer, with names of patches, discarding any filenames in the archive that arent numbers per number-or-marker-p, and also gets the 7zr-patch-number.  When a revision is selected and the enter key is pressed, or the u key in the case of displaying the respective diff files, then the (7zr-summary-view-revision) function takes over."
+  "This function is called from the main document and finds the 7zr-original-version variable and displays all the revisions in an interactive buffer, which is stored in the variable 7zr-revisions_tmpbuffer, with names of patches, discarding any filenames in the archive that arent numbers per number-or-marker-p, and also gets the 7zr-patch-number.  When a revision is selected and the enter key is pressed, or the u key in the case of displaying the respective diff files, then the (7zr-summary-view-revision) function takes over."
   (interactive)
   (setq cntr 0) ; debug
   (unless (file-directory-p 7zr-temp-directory)
     (make-directory 7zr-temp-directory t))
-
-;  (setq 7zr-active-document_buffer (current-buffer))
-;  (setq 7zr-active-document (buffer-name 7zr-active-document_buffer))
-  (setq 7zr-buffer (buffer-name (current-buffer)))
-
-
-  (if (or (string= 7zr-archive-directory_default "") (string= 7zr-archive-directory_default "."))
-      (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
-    (7zr-set-archive-directory 7zr-archive-directory_default)
-    )    
-  (setq 7zr-archive-directory-full 7zr-archive-directory)
+  (7zr-populate-initial-global-vars) 
+  (7zr-set-archive-directory-full 7zr-archive-directory)
   (setq 7zr-revisions_original_buffer (current-buffer))
 
   (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer))
   (setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer))
   (setq 7zr-latest-revision_size "")
   (setq 7zr-latest-revision_datetime "")
-  (7zr-populate-initial-global-vars) 
 
   
   (if (not (file-exists-p (concat 7zr-archive-directory 7zr-archive-name)))
@@ -2791,6 +2782,7 @@ See help of `format-time-string' for possible replacements")
 ;	(message 7zr-active-document_original-version)	  
 	  )
       ; else fail
+      (message (concat "archive Directory =" 7zr-archive-directory))
       (message (concat "There already exists an archive named " (buffer-name (current-buffer)) 7zr-archive-extension " that is evidently not a 7z-revisions.el archive since it lacks a file named '" 7zr-archive-created-by-message  "' !  You must type M-x 7zr-create-file-for-archive-created-by-message to fix this, if the archive was created by 7z-revisions.el."))
       )
     )
@@ -3295,7 +3287,7 @@ STRING is the output line from PROC.  Not used."
 
 (defun 7zr-delete-file-from-temp-if-exists  ( filename )
   " Delete a filename if it exists, and return nil if it doesnt."
-  (let (filename_trimmed (saved-directory (7zr-pwd)))
+  (let (filename_trimmed (saved-directory default-directory))
     (setq filename_trimmed (7zr-trim-l (7zr-trim-r filename)))
     (cd 7zr-temp-directory)
     (if (and
@@ -3325,7 +3317,7 @@ returns nil, taking no action, if it doesnt.  In addition, this
 over-writes destination file if that file already exists.  The
 overwritep option is ignored for now."
   (when file
-    (let (filename_trimmed (saved-directory (7zr-pwd)))
+    (let (filename_trimmed (saved-directory default-directory))
       (setq filename_trimmed (7zr-trim-l (7zr-trim-r file)))
       (cd 7zr-temp-directory)
     
@@ -4514,7 +4506,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
     (switch-to-buffer wip_buffer)
 ;    (7zr-remove-all-control-Ms-from-ends-of-lines)
 ;; no longer have to do the following if we use a wip_buffer in lieu of a wip file
-;    (setq saved_directory (7zr-pwd))
+;    (setq saved_directory default-directory)
 ;    (find-file-read-only (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
 ;    (7z-revisions-mode 0)
 ;    (cd saved_directory)
@@ -4842,7 +4834,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
  
     (7zr-summary-reconst-last-del)  ; saves state
     (setq 7zr-revisions_lastbuffer (current-buffer))
-    (setq saved_directory (7zr-pwd))
+    (setq saved_directory default-directory)
     (find-file-read-only (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
     (7z-revisions-mode 0)
     (cd saved_directory)
@@ -5062,9 +5054,17 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
   )
 
 (defun 7zr-set-archive-directory( target_directory )
-  (let ((saved_dir (7zr-pwd)))
+  (let ((saved_dir default-directory))
     (cd target_directory)
-    (setq 7zr-archive-directory (7zr-pwd))
+    (setq 7zr-archive-directory default-directory)
+    (cd saved_dir)
+    )
+  )
+
+(defun 7zr-set-archive-directory-full( target_directory )
+  (let ((saved_dir default-directory))
+    (cd target_directory)
+    (setq 7zr-archive-directory-full default-directory)
     (cd saved_dir)
     )
   )
@@ -5074,7 +5074,7 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
 every difference and is only used for highlighting changes when
 reviewing revisions.  An unintended consequence of running this function is that it causes the line of the highlighted text to become untabified when calling the function (7zr-map-difference-ranges-to-point-ranges).  This function is called from (7zr-view-highlight-changes)"
   (setq 7zr-parse-standard-diff-type_diff_list '())
-(message (concat "archive directory: " 7zr-active-document_archive-directory-full))
+  (message (concat "archive directory: " 7zr-active-document_archive-directory-full))
 ;  (cd 7zr-archive-directory-full)
   (save-window-excursion
     (if parse-ancestorp
@@ -5097,7 +5097,7 @@ reviewing revisions.  An unintended consequence of running this function is that
     (get-buffer-create 7zr-parse-create-blank-file-tmpbuffer)  ;; debugging
     (set-buffer 7zr-parse-create-blank-file-tmpbuffer)    ;; debugging
 
-    (setq 7zr-misc_save-directory-path (7zr-pwd))
+    (setq 7zr-misc_save-directory-path default-directory)
     (cd 7zr-temp-directory)
 
     (insert-file-contents 7zr-parse-standard-diff-type_diff-file)
@@ -5279,7 +5279,7 @@ reviewing revisions.  An unintended consequence of running this function is that
     )
   
   (setq 7zr-parse-standard-diff-type_lastbuffer (current-buffer))
-  (let ((save_directory (7zr-pwd)))
+  (let ((save_directory default-directory))
     (find-file (concat 7zr-temp-directory "7zr-parse-" 7zr-original-version))
     (7z-revisions-mode 0)
 ;    (untabify (point-min) (point-max))
@@ -5833,7 +5833,17 @@ revisions.  An unintended consequence of running this function is that it causes
   the original file which is timestamp appended, a file containing hash values of revisions,
   and a file, whose filename is a message that indicates that the archive was 
   created by 7z-revisions.el, inside of which contains the highest revision number, the original version name, the document name, and other information"
-  (let ((buffer-name-as-a-number (string-to-number (buffer-name (current-buffer)))) (tmphashvalue "") (7zr-dot ".") (saved-working-directory (7zr-pwd)))
+  (let ((buffer-name-as-a-number (string-to-number (buffer-name (current-buffer)))) (tmphashvalue "") (7zr-dot ".") (saved-working-directory default-directory))
+
+    ;debug
+  (if (or (string= 7zr-archive-directory_default "") (string= 7zr-archive-directory_default "."))
+      (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
+    (7zr-set-archive-directory 7zr-archive-directory_default)
+    )    
+;  (setq 7zr-archive-directory-full 7zr-archive-directory)
+  (7zr-set-archive-directory-full 7zr-archive-directory)
+
+
     (if (and 
     	 (floatp buffer-name-as-a-number)
     	 (string= (buffer-name (current-buffer)) (number-to-string buffer-name-as-a-number)))
@@ -6040,7 +6050,7 @@ Tries to be version control aware."
 (defun 7zr-remove-all-colons-from-all-listings-in-archive ()
   "call this to remove colons from the timestamps in the filenames of archived files, in order to make them compliant with microsoft windows.  Also edit them out of the hash file.   Ideally, this function should not be interactive, so as to make it easy to call this function accidently; it would be best to have to write the function call into your document and then press C-x C-e in order to execute it.  This function can only be called on a linux or mac os, i think."
   (interactive)
-  (let (list-buffer last-buffer original-version listing newlisting (hashfile-listing "") (saved-working-directory (7zr-pwd)))
+  (let (list-buffer last-buffer original-version listing newlisting (hashfile-listing "") (saved-working-directory default-directory))
     (unless (file-directory-p 7zr-temp-directory)
       (make-directory 7zr-temp-directory t))
     (save-excursion
@@ -6106,11 +6116,6 @@ Tries to be version control aware."
   )
 
 
-(defun 7zr-pwd ()
-  "Print working directory.  But, cut off the beginning 10 characters from the (pwd) command that says Directory, and return the rest"
-  (substring-no-properties (pwd) 10)  
-  )
-
 
 (defun 7zr-string-ends-in-newline-p ( input_string )
   "Returns t if input_string ends in a newline, otherwise nil."
@@ -6162,7 +6167,7 @@ Tries to be version control aware."
     (when (or (string= 7zr-original-version "")
 	      (eql 7zr-original-version nil))
       (error "no 7zr-original-version"))
-    (let ((tmphashvalue "") (7zr-patch-number-string "") (saved-working-directory (7zr-pwd)))
+    (let ((tmphashvalue "") (7zr-patch-number-string "") (saved-working-directory default-directory))
       (setq 7zr-patch-number (1+ 7zr-patch-number))
       (setq 7zr-patch-number-string (number-to-string 7zr-patch-number))
 
@@ -6215,6 +6220,7 @@ Tries to be version control aware."
 (defun 7zr-append-archive ()
   "Patch to create the latest version then create a diff against that and append it to the archive."
   (let (examine_disposition)
+
 ; (7zr-examine-archive)
     (setq examine_disposition (7zr-examine-created-by-message-file))
     (if (string= examine_disposition "1")
@@ -6384,7 +6390,9 @@ Tries to be version control aware."
   (interactive)
   ;(if (not (bound-and-true-p 7zr-window))
   ;    (message "Sorry, you cannot use this function here.")
+
   (unless (bound-and-true-p 7zr-viewing)
+
     (7zr-populate-initial-global-vars)
     (7zr-get-highest-rev-and-original-version)
       
@@ -6598,14 +6606,23 @@ Tries to be version control aware."
   
   (setq 7zr-revisions_original_buffer (current-buffer))
 ;  (setq 7zr-active-document (buffer-name 7zr-active-document_buffer))
-  (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
+;  (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))  ;debug 
 
   (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer)) 
-  (setq 7zr-archive-name (concat 7zr-archive-prefix 7zr-buffer 7zr-archive-extension))
 
-  (setq 7zr-document-directory (file-name-directory (buffer-file-name (current-buffer))))
-  (when (string= "" (setq 7zr-archive-directory (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_directory-of-archive)))
-      (setq 7zr-archive-directory 7zr-archive-directory_default)
+    ;debug
+  (if (or (string= 7zr-archive-directory_default "") (string= 7zr-archive-directory_default "."))
+      (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
+    (7zr-set-archive-directory 7zr-archive-directory_default)
+    )    
+
+  (7zr-set-archive-directory-full 7zr-archive-directory)
+
+
+
+  (setq 7zr-temp-string-variable (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_directory-of-archive))
+  (when (not (string= "" 7zr-temp-string-variable))
+    (7zr-set-archive-directory 7zr-temp-string-variable)
       )
   (when (string= "" (setq 7zr-archive-prefix (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_archive-prefix)))
     (setq 7zr-archive-prefix 7zr-archive-prefix_default)
@@ -6614,6 +6631,8 @@ Tries to be version control aware."
     (setq 7zr-archive-extension 7zr-archive-extension_default)
     )
   (setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
+  (setq 7zr-archive-name (concat 7zr-archive-prefix 7zr-buffer 7zr-archive-extension))
+  (setq 7zr-document-directory (file-name-directory (buffer-file-name (current-buffer))))
   (setq 7zr-buffer-file-coding-system (symbol-name buffer-file-coding-system))
   )
 
