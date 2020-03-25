@@ -78,6 +78,9 @@ Compatible with windows and linux, and probably mac.
 ### When **M-x** **7z-revisions** is started, the following key bindings take effect:<br/>
  Enter = view revision at point,<br/> 
  q = quit 7z-revisions,<br/>
+ n = next line,<br/>
+ p = previous line,<br/>
+ w = display day of current lines timestamp,<br/>
  c = consolidate region,<br/>
  g = prompt for entering a date, or date-time, and then goto that date-time inputted,<br/>
  h = toggle highlight differences,<br/>
@@ -89,7 +92,8 @@ Compatible with windows and linux, and probably mac.
 ### While viewing individual past revisions:<br/>
  q = quit to 7z-revisions buffer,<br/>
  n = next revision,<br/>
- p = previous revision,<br/> 
+ p = previous revision,<br/>
+ w = display day of the week of revision timestamp,<br/>
  u = view the diff file,<br/>
  g = Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions.<br/>
  
@@ -102,6 +106,7 @@ Compatible with windows and linux, and probably mac.
  q = quit to 7z-revisions buffer,<br/>
  n = next diff file,<br/>
  p = previous diff file,<br/>
+ w = display day of the week of diff files timestamp,<br/>
  r = switch to revision view,<br/>
  d = jump to next change hunk,<br/>
  e = jump to previous change hunk, <br/>

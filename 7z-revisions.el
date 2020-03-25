@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 2.7
-;; commit date: 2019-12-15
+;; version: 2.8
+;; commit date: 2020-03-25
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -82,22 +82,24 @@
 ;;
 ;; When 7z-revisions is called, the following key bindings take
 ;;   effect: Enter = view the selected revision, j = view raw diff
-;;   file of selected revision, C-c C-a = view all selected diff files in
-;;   one buffer, q = quit, C-c c = consolidate region, g = goto date, h =
-;;   toggle highlight differences, c = edit revision note
+;;   file of selected revision, C-c C-a = view all selected diff files
+;;   in one buffer, q = quit, C-c c = consolidate region, g = goto
+;;   date, h = toggle highlight differences, c = edit revision note, w
+;;   = display day of the week
 ;;
 ;; While viewing a revision: q = quit, n = next, p = previous.  Also,
 ;;   when highlight changes is enabled, d = jump to next
 ;;   difference/change, e = jump to previous change, j = view the raw
-;;   diff file, g = Quit 7z-revisions and then try to goto the line in
-;;   your document corresponding to the last line viewed from
-;;   7z-revisions.
+;;   diff file, w = display day of the week, g = Quit 7z-revisions and
+;;   then try to goto the line in your document corresponding to the
+;;   last line viewed from 7z-revisions.
 ;;
-;; While viewing a raw diff file: q = quit, n = next, p = previous, r
-;;   = switch to revision view, d = jump to next change hunk, e = jump
-;;   to previous change hunk, g = Quit 7z-revisions and then try to
-;;   goto the line in your document corresponding to the change hunk
-;;   that was at point.
+;; While viewing a raw diff file: q = quit, n = next, p = previous, w
+;;   = display day of the week of diff files timestamp, r = switch to
+;;   revision view, d = jump to next change hunk, e = jump to previous
+;;   change hunk, g = Quit 7z-revisions and then try to goto the line
+;;   in your document corresponding to the change hunk that was at
+;;   point.
 ;;
 ;;
 ;; There are also some functions in the menu which provide for
@@ -154,7 +156,7 @@
 
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 2.7)
+(setq 7z-revisions-version 2.8)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-archive-extension ".7z")
@@ -310,7 +312,7 @@
        (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
 					; else assume linux
      (7zr-reconstruct-rev-from-patches_LINUX rev)
-;       (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
+ ;    (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
      )
 
    )
@@ -415,6 +417,7 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
     (define-key map (kbd "t") '7zr-jump-to-this-timestamp-for-all-7z-buffers)
     (define-key map (kbd "n") '7zr-summary-forward-line)
     (define-key map (kbd "p") '7zr-summary-previous-line)
+    (define-key map (kbd "w") '7zr-summary-dow)
     (define-key map (kbd "<down>") '7zr-summary-forward-line)
     (define-key map (kbd "<up>") '7zr-summary-previous-line)
     (define-key map (kbd "v") '7zr-summary-view-revision-note)
@@ -484,6 +487,10 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
    (define-key map [menu-bar 7zr-summary view-note]
      '(menu-item "View Note" 7zr-summary-view-revision-note
 		 :help "View current revision note."))
+
+   (define-key map [menu-bar 7zr-summary dow]
+     '(menu-item "DOW" 7zr-summary-dow
+		 :help "What's the day of the week of current line?"))
 
    (define-key map [menu-bar 7zr-summary forward-line]
      '(menu-item "Forward Line" 7zr-summary-forward-line
@@ -774,7 +781,8 @@ Uses `current-date-time-format' for the formatting the date/time.  Don't use thi
     (setq *month* (string-to-number (format-time-string "%m" current_time)))
     (encode-time 0 0 0 *day* *month* *year*)
     )
-)
+  )
+
 
 (defun 7zr-encoded-date-now ()
   (interactive)
@@ -817,11 +825,22 @@ Uses `current-date-time-format' for the formatting the date/time.  Don't use thi
   (interactive)
   (time-subtract (7zr-encoded-date-todays) (days-to-time (string-to-number (format-time-string "%u" (current-time)))))
 )
-
+				       
 (defvar 7zr-match-timestamp "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)" 
 "Matches the timestamp found in the .7z archive file")
 
-(setq 7zr-match-timestamp2 "\\(20[0-9]\\{2\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)")
+(defvar 7zr-match-timestamp2 "\\(20[0-9]\\{2\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)"
+  "regex pattern of timestamp listed from 7zip")
+
+(defvar 7zr-match-timestamp3 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)"
+  "regex pattern of timestamp, getting year month day hour minute second individually")
+
+(defvar 7zr-match-timestamp4 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)"
+  "regex pattern of timestamp, getting year month day hour minute individually, used in the function 7zr-parse-timestamp3-to-encoded-timetuple")
+
+(defvar 7zr-match-timestamp5 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)"
+  "regex pattern of timestamp, getting year month day individually, used in the function 7zr-parse-timestamp3-to-encoded-timetuple")
+
 
 
 (defun 7zr-summary-find-encoded-datetime ( target afterp )
@@ -839,7 +858,7 @@ where it lies."
 ;
 	(while (and 
 		(setq found_a_timestamp (re-search-backward 7zr-match-timestamp2 nil t))
-		(setq timetuple (apply #'encode-time (parse-time-string (match-string 0))))
+		(setq timetuple (7zr-parse-timestamp3-to-encoded-timetuple (match-string 0)))
 		(7zr-encoded-time-gt timetuple target)
 		)
 	  nil
@@ -864,6 +883,28 @@ where it lies."
     )    ; let
   )
 
+
+
+(defun 7zr-parse-timestamp3-to-encoded-timetuple ( dateinq )
+  (save-match-data 
+    (if (string-match 7zr-match-timestamp3 dateinq)      
+	(encode-time (string-to-number (match-string 6 dateinq)) (string-to-number (match-string 5 dateinq)) (string-to-number (match-string 4 dateinq)) (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq)))
+					; else try the timestamp4 pattern
+      (save-match-data
+	(if (string-match 7zr-match-timestamp4 dateinq)
+	    (encode-time 0 (string-to-number (match-string 5 dateinq)) (string-to-number (match-string 4 dateinq)) (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq)))
+	 
+	  
+					; else try timestamp5 pattern
+	  (save-match-data
+	    (string-match 7zr-match-timestamp5 dateinq)
+	    (encode-time 0 0 0 (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq))))
+	 
+	  )
+	)
+      )
+    )
+  )
 
 (defun 7zr-summary-goto-sha1 ()
   (interactive)
@@ -913,7 +954,7 @@ where it lies."
       (setq inputted_date (concat inputted_date " 0:00"))
       )
 	    (condition-case ex
-		(setq inputted_timetuple (apply #'encode-time (parse-time-string inputted_date)))
+		(setq inputted_timetuple (7zr-parse-timestamp3-to-encoded-timetuple inputted_date))
         ('error (message (format " Invalid date! " ))))
       (when inputted_timetuple
 	(setq datepoint (7zr-summary-find-encoded-datetime inputted_timetuple nil))
@@ -927,6 +968,20 @@ where it lies."
   )
 
 
+(defun 7zr-summary-dow ()
+  (interactive)
+  (save-match-data
+    (save-excursion
+      (beginning-of-line)
+      (if (re-search-forward 7zr-match-timestamp3 (line-end-position) t)
+	  
+	  (message (format-time-string "%a" (7zr-parse-timestamp3-to-encoded-timetuple (match-string-no-properties 0))))
+	)
+      )
+    )
+  )
+
+      
 (defun 7zr-summary-consolidate-last-hour ()
   (interactive)
   (let (begin end today tomorrow lasthour)
@@ -1667,6 +1722,7 @@ them."
     (define-key map (kbd "e") '7zr-view_jump_to_previous_difference)
     (define-key map (kbd "p") '7zr-view_previous_page)
     (define-key map (kbd "n") '7zr-view_next_page)
+    (define-key map (kbd "w") '7zr-view-raw-diff_dow)
     (define-key map (kbd "t") '7zr-view_datetime)
     (define-key map (kbd "g") '7zr-view_quit7zr_then_goto_line_viewed)
     (define-key map (kbd "u") '7zr-view-quit_view_diff)
@@ -1689,6 +1745,10 @@ them."
       '(menu-item "Jump to previous difference" 7zr-view_jump_to_previous_difference
                   :help "Jump to the previous highlighted difference in current revision"))
     (define-key map [menu-bar 7zr-view sep] menu-bar-separator)
+    (define-key map [menu-bar 7zr-view dow]
+      '(menu-item "DOW" 7zr-view-raw-diff_dow
+                  :help "On what day of the week was this revision saved?"))
+
     (define-key map [menu-bar 7zr-view next_page]
       '(menu-item "View Next Revision" 7zr-view_next_page
                   :help "View next revision in sequence."))
@@ -1924,6 +1984,14 @@ text or number values"
     )
   )
 		       
+(defun 7zr-view-raw-diff_dow ()
+  (interactive)
+    (if (and 7zr-view_date
+	     (not (string= 7zr-view_date "")))
+	(message (format-time-string "%a" (7zr-parse-timestamp3-to-encoded-timetuple 7zr-view_date)))
+      )
+    )
+
 
 
 (defun 7zr-summary-view-raw-diff-file ()
@@ -2000,6 +2068,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
     (define-key map (kbd "d") '7zr-view-raw-diff_next_change_hunk)   
     (define-key map (kbd "e") '7zr-view-raw-diff_prev_change_hunk)
     (define-key map (kbd "t") '7zr-view_datetime)
+    (define-key map (kbd "w") '7zr-view-raw-diff_dow)
     (define-key map (kbd "g") '7zr-view-raw-diff-quit7zr_then_goto_line)      
     (define-key map (kbd "r") '7zr-view-raw-diff-quit_then_view_revision)
     (define-key map (kbd "q") '7zr-view-raw-diff-quit)
