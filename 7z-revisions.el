@@ -7,8 +7,8 @@
 ;; over-kill.  Compatible with windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 2.8
-;; commit date: 2020-03-25
+;; version: 2.9
+;; commit date: 2020-06-19
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -113,7 +113,7 @@
 ;;   views the 7z-revisions archive at point, comes into effect.
 ;;
 ;; Required features:
-;;   hl-line+.el
+;;   hl-line+.el  ( not required, but aesthetic )
 ;;   p7zip
 ;;   diffutils  ( just the diff command )
 ;;
@@ -154,9 +154,12 @@
 ;;; 7zr-summary-mode.el begins ------------------------
 
 
+ (if (boundp 'evil-mode)
+   (add-to-list 'evil-emacs-state-modes '7zr-summary-mode)
+   )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 2.8)
+(setq 7z-revisions-version 2.9)
 (setq 7zr-track-md5sum-hashes-p t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-track-md5sum-hashes-p_default t) ; setting this to nil may speed things up a bit, but dont fiddle with this yet
 (setq 7zr-archive-extension ".7z")
@@ -412,6 +415,7 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
   (let ((map (make-sparse-keymap)))
     (define-key map "\e\t" 'kill-buffer)
     (define-key map (kbd "<RET>") '7zr-summary-view-revision)
+    (define-key map (kbd "C-c q") '7zr-summary-quit)
     (define-key map (kbd "q") '7zr-summary-quit)
     (define-key map (kbd "C-c C-a") '7zr-summary-all-diffs-of-region-to-1-buffer)
     (define-key map (kbd "t") '7zr-jump-to-this-timestamp-for-all-7z-buffers)
@@ -643,7 +647,8 @@ Turning on 7zr-metafile-mode runs the normal hook `7zr-metafile-mode-hook'."
 
 (defun 7zr-turn-on-hl-line-mode ()
   (interactive)
-  (hl-line-mode 1)
+  (if (fboundp 'hl-line-mode)
+      (hl-line-mode 1))
 )
 
 
@@ -886,25 +891,47 @@ where it lies."
 
 
 (defun 7zr-parse-timestamp3-to-encoded-timetuple ( dateinq )
-  (save-match-data 
-    (if (string-match 7zr-match-timestamp3 dateinq)      
-	(encode-time (string-to-number (match-string 6 dateinq)) (string-to-number (match-string 5 dateinq)) (string-to-number (match-string 4 dateinq)) (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq)))
+  (save-match-data
+    (let ((result nil) (y 0) (w 0) (m 0) (d 0) (h 0) (min 0)
+	  (7zr-match_years "\\([0-9]+\\)[[:blank:]]*y")
+	  (7zr-match_weeks "\\([0-9]+\\)[[:blank:]]*w")
+	  (7zr-match_months "\\([0-9]+\\)[[:blank:]]*m")
+	  (7zr-match_days "\\([0-9]+\\)[[:blank:]]*d")
+	  (7zr-match_hours "\\([0-9]+\\)[[:blank:]]*h")
+	  (7zr-match_minutes "\\([0-9]+\\)[[:blank:]]*min")
+	  (patterns (list
+		     (list "\\([0-9]+\\)[[:blank:]]*y" '(setq y (match-string 1 dateinq)))
+		     (list "\\([0-9]+\\)[[:blank:]]*w" '(setq w (match-string 1 dateinq)))
+		     (list "\\([0-9]+\\)[[:blank:]]*m" '(setq m (match-string 1 dateinq)))
+		     (list "\\([0-9]+\\)[[:blank:]]*d" '(setq d (match-string 1 dateinq)))
+		     (list "\\([0-9]+\\)[[:blank:]]*h" '(setq h (match-string 1 dateinq)))
+		     (list "\\([0-9]+\\)[[:blank:]]*min" '(setq min (match-string 1 dateinq))))))			  
+      (cond
+       ((string-match 7zr-match-timestamp3 dateinq)      
+	(encode-time (string-to-number (match-string 6 dateinq)) (string-to-number (match-string 5 dateinq)) (string-to-number (match-string 4 dateinq)) (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq))))
 					; else try the timestamp4 pattern
-      (save-match-data
-	(if (string-match 7zr-match-timestamp4 dateinq)
-	    (encode-time 0 (string-to-number (match-string 5 dateinq)) (string-to-number (match-string 4 dateinq)) (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq)))
-	 
-	  
+
+       ((string-match 7zr-match-timestamp4 dateinq)
+	(encode-time 0 (string-to-number (match-string 5 dateinq)) (string-to-number (match-string 4 dateinq)) (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq))))	 	  
 					; else try timestamp5 pattern
-	  (save-match-data
-	    (string-match 7zr-match-timestamp5 dateinq)
-	    (encode-time 0 0 0 (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq))))
-	 
-	  )
+       ((string-match 7zr-match-timestamp5 dateinq)
+	(encode-time 0 0 0 (string-to-number (match-string 3 dateinq)) (string-to-number (match-string 2 dateinq)) (string-to-number (match-string 1 dateinq))))
+					; else try the other patterns
+       ((dolist (x patterns result)
+	  (if (string-match-p x dateinq)
+	      (setq result t)))
+	(dolist (x patterns)
+	  (if (string-match (car x) dateinq)
+	      (eval (car (cdr x)))))
 	)
+       (t
+	(message "invalid date!")
+	))  ; cond
       )
     )
   )
+
+
 
 (defun 7zr-summary-goto-sha1 ()
   (interactive)
@@ -1263,7 +1290,7 @@ the patch files to be deleted in the region, the revision notes of which are all
 		   ) ;; 7zr-eval-string
 		  (end-of-line)
 		  )
-		(goto-char (point-max))
+		(goto-char (point-min))
 		)  ;; save-restriction
 	      (setq diffs_stack_tuple (pop diffs_stack))
 	      ) ;; while diffs_stack_tuple
@@ -1718,15 +1745,20 @@ them."
 
 (defvar 7zr-view-mode-map 
   (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c d") '7zr-view_jump_to_next_difference)   
+    (define-key map (kbd "C-c e") '7zr-view_jump_to_previous_difference)
+    (define-key map (kbd "C-c n") '7zr-view_previous_page)
+    (define-key map (kbd "C-c p") '7zr-view_next_page)
+    (define-key map (kbd "C-c q") '7zr-view-quit)
     (define-key map (kbd "d") '7zr-view_jump_to_next_difference)   
     (define-key map (kbd "e") '7zr-view_jump_to_previous_difference)
     (define-key map (kbd "p") '7zr-view_previous_page)
     (define-key map (kbd "n") '7zr-view_next_page)
     (define-key map (kbd "w") '7zr-view-raw-diff_dow)
     (define-key map (kbd "t") '7zr-view_datetime)
-    (define-key map (kbd "g") '7zr-view_quit7zr_then_goto_line_viewed)
     (define-key map (kbd "u") '7zr-view-quit_view_diff)
     (define-key map (kbd "q") '7zr-view-quit)
+    
     (define-key map [menu-bar 7zr-view]
       (cons "7zr-view" (make-sparse-keymap "7zr-view")))
     (define-key map [menu-bar 7zr-view quit]
@@ -2002,7 +2034,6 @@ global variable 7zr-summary-rev-at-point.  The actual diff file
 filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
   (interactive)
   (beginning-of-line)
-
   (if (< 7zr-active-document_7zr-revisions_tmpbuffer_lines 3)
       (error "There are no diffs in archive to view!")
 					; else
@@ -2063,15 +2094,26 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 
 (defvar 7zr-view-raw-diff-file-mode-map 
   (let ((map (make-sparse-keymap)))
+    
+    (define-key map (kbd "C-c p") '7zr-view-raw-diff_previous_page)
+    (define-key map (kbd "C-c n") '7zr-view-raw-diff_next_page)
+    (define-key map (kbd "C-c d") '7zr-view-raw-diff_next_change_hunk)   
+    (define-key map (kbd "C-c e") '7zr-view-raw-diff_prev_change_hunk)
+    (define-key map (kbd "C-c g") '7zr-view-raw-diff-quit7zr_then_goto_line)      
+    (define-key map (kbd "C-c q") '7zr-view-raw-diff-quit)
     (define-key map (kbd "p") '7zr-view-raw-diff_previous_page)
     (define-key map (kbd "n") '7zr-view-raw-diff_next_page)
     (define-key map (kbd "d") '7zr-view-raw-diff_next_change_hunk)   
+
     (define-key map (kbd "e") '7zr-view-raw-diff_prev_change_hunk)
+
     (define-key map (kbd "t") '7zr-view_datetime)
     (define-key map (kbd "w") '7zr-view-raw-diff_dow)
     (define-key map (kbd "g") '7zr-view-raw-diff-quit7zr_then_goto_line)      
+    
     (define-key map (kbd "r") '7zr-view-raw-diff-quit_then_view_revision)
     (define-key map (kbd "q") '7zr-view-raw-diff-quit)
+
     (define-key map [menu-bar 7zr-view-raw-diff]
       (cons "7zr-view-raw-diff" (make-sparse-keymap "7zr-view-raw-diff")))
     (define-key map [menu-bar 7zr-view-raw-diff quit]
@@ -2117,7 +2159,8 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 
 ;;;;;; 7z-revisions.el begins ---- ----------------------------------
 
-(require 'hl-line+)
+;(if (fboundp 'hl-line-mode)
+;    (require 'hl-line+))
 ;(setq debug-on-error t)
 ;(hl-line-mode 0)
 (defgroup 7z-revisions-mode nil
@@ -2651,6 +2694,12 @@ See help of `format-time-string' for possible replacements")
   "This function is called from the main document and finds the 7zr-original-version variable and displays all the revisions in an interactive buffer, which is stored in the variable 7zr-revisions_tmpbuffer, with names of patches, discarding any filenames in the archive that arent numbers per number-or-marker-p, and also gets the 7zr-patch-number.  When a revision is selected and the enter key is pressed, or the u key in the case of displaying the respective diff files, then the (7zr-summary-view-revision) function takes over."
   (interactive)
   (setq cntr 0) ; debug
+
+  
+(if (boundp 'evil-mode)
+  (add-to-list 'evil-emacs-state-modes '7zr-summary-mode)
+  )
+
   (unless (file-directory-p 7zr-temp-directory)
     (make-directory 7zr-temp-directory t))
   (7zr-populate-initial-global-vars) 
@@ -2847,7 +2896,7 @@ See help of `format-time-string' for possible replacements")
 	      )
 	    )
 	  (set (make-local-variable '7zr-viewing) "true")
-
+	  ;(evil-mode 0)
 ;	(message 7zr-active-document_original-version)	  
 	  )
       ; else fail
