@@ -1,15 +1,16 @@
+;;;                  -*- lexical-binding: t; -*-          
 ;; 7z-revisions.el --- This Emacs app is not a version control system,
 ;; but simply an incremental backup system that easily lets one browse
 ;; and search past saves of a single file, keeping incremental diffs
 ;; in a .7z archive, facilitating quick audits.  Also, provides word
 ;; by word differential highlighting.  Also, provides syntax coloring
 ;; when viewing raw diff files.  Useful when git may be considered
-;; over-kill and its .git directories burdensome.  Compatible with
+;; over-kill and its .git directories cumbersome.  Compatible with
 ;; windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 3.1
-;; commit date: 2020-08-12
+;; version: 3.2
+;; commit date: 2020-08-18
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -28,7 +29,7 @@
 ;; issued, incrementally saving the latest revision by adding a new
 ;; patch to the archive.  And, of course, the .7z extension can be
 ;; altered to something else, such as .8z, by setting the global
-;; variable 7zr-archive-extension to ".8z".  Additionally, the
+;; variable 7zr-archive-extension_default to ".8z".  Additionally, the
 ;; function 7z-revisions can be called interactively to view or
 ;; consolidate past revisions in the archive.
 ;;
@@ -71,6 +72,7 @@
 ;;     M-x 7zr-modify-raw-hash-file
 ;;     M-x 7zr-modify-raw-notes-file
 ;;     M-x 7zr-rename-document-and-its-archive
+;;     M-x 7zr-regenerate-all-hashes-from-diffs
 ;;     M-x 7zr-refresh-all-bookmarks
 ;;     M-x 7z-revisions-mode
 ;;     M-x 7z-revisions
@@ -81,7 +83,8 @@
 ;; tags, F2 3 = update tags, F2 CTRL-s = update tags & save buffer, F2
 ;; l = goto line last changed, F2 p = when was line of point last
 ;; changed, F2 s = select tag to insert, F2 CTRL-r = rename document &
-;; archive, F2 C-d = input (set) default archive directory, F2 C-f = edit
+;; archive, F2 C-F2 regenerate all sha1 hashes using the diff files,
+;; F2 C-d = input (set) default archive directory, F2 C-f = edit
 ;; metafile (created-by-message file), F2 ` = exit 7z-revisions-mode.
 ;;
 ;; When 7z-revisions is called, the following key bindings take
@@ -97,9 +100,11 @@
 ;;   when highlight changes is enabled, d = jump to next
 ;;   difference/change, e = jump to previous change, j = view the raw
 ;;   diff file, w = display day of the week, F2 C-p view to the past
-;;   revision that changes the selected region, g = Quit 7z-revisions
-;;   and then try to goto the line in your document corresponding to
-;;   the last line viewed from 7z-revisions.
+;;   revision that changes the selected region, F2 C-F2 = view
+;;   revision of where lines in an active region have last been
+;;   modified, g = Quit 7z-revisions and then try to goto the line in
+;;   your document corresponding to the last line viewed from
+;;   7z-revisions.
 ;;
 ;; While viewing a raw diff file: q = quit, n = next, p = previous, w
 ;;   = display day of the week of diff files timestamp, r = switch to
@@ -116,8 +121,8 @@
 ;; Also, sha1sum hash values for each revision are saved in the
 ;; hashtable stored in the archive and can be search from the menu.
 ;;
-;; While in dired-mode, the key binding z = 7zr-dired-7z-revisions, which
-;;   views the 7z-revisions archive at point, comes into effect.
+;; In dired-mode, the key binding C-c z = 7zr-dired-7z-revisions,
+;;   which views the 7z-revisions archive at point.
 ;;
 ;; Required features:
 ;;   hl-line+.el  ( not required, but aesthetic )
@@ -172,14 +177,15 @@
    )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 3.1)
+(setq 7z-revisions-version 3.2)
 (setq 7zr-track-md5sum-hashes-p t)
 (setq 7zr-track-md5sum-hashes-p_default t)
-(setq 7zr-archive-extension ".7z")
-(setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
-(setq 7zr-archive-extension_default ".7z")
 (setq 7zr-archive-prefix "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
+(setq 7zr-archive-extension_default ".7z")  ; change this variable to change archive extension
 (setq 7zr-archive-prefix_default "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
+(setq 7zr-archive-extension 7zr-archive-extension_default)
+(setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
+
 (setq 7zr-temp-directory-windows-nt "/tmp/")   ; temp directory to use on windows machines
 (setq 7zr-temp-directory-linux "/tmp/")
 (setq 7zr-temp-directory-apple "/tmp/")
@@ -209,10 +215,6 @@
 (setq 7zr-pointer-lastviewed_nearest_progeny "")
 (setq 7zr-pointer-lastviewed_last_nearest_progeny "")
 (setq 7zr-pointer-lastviewed_raw_diff_file "")
-(setq 7zr-pointer-lastviewed_raw_diff_file2 "")
-(setq 7zr-temp-string-variable "")
-(setq 7zr-temp-number-variable 0)
-
 (setq 7zr-summary-view-revision_last_rev "")
 (setq 7zr-prepend-to-reconstruct_wip "7zr-prepend-to-reconstruct_wip")
 (setq 7zr-prepend-to-diff-file "diff_")
@@ -235,7 +237,7 @@
 (setq 7zr-summary-reconst-last "")  
 (setq 7zr-archive-created_datetime "")
 (setq 7zr-archive-created-by-message "7z-revisions.el created this archive")  ;; this string should probably not end in a file extension which has a 7zr-turn-on-7zr-revisions-mode hook associated with it, or it will cause emacs to crash when creating a new archive  
-; (defvar 7zr-hasht (make-hash-table :size 20000 :test 'equal))  ; this must instead be a buffer local variable
+; (setq 7zr-hasht (make-hash-table :size 20000 :test 'equal))  ; this must instead be a buffer local variable
 (setq 7zr-summary-last-line 0)  ; line number of revision in the 7z-revisions display, not to be mistaken for the last line number of point in the document ( which would be related to 7zr-view-last-pos or 7zr-view-last-line)
 (setq 7zr-view-last-column 0)
 (setq 7zr-view-last-line 0)  ; line number of point when 7z-revisions is invoked
@@ -261,6 +263,7 @@
 (setq 7zr-disable-summary-goto-sha1 nil)  ;; used for windows compatibility
 (setq 7zr-diff-command "diff -Na")
 (setq 7zr-patch-command "patch -p0")
+(setq 7zr-patch-command-called-x-times 0)  ;; debug 
 (setq 7zr-add-to-archive-command "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on")
 (setq 7zr-buffer "")       ; buffer of active document, before calling 7z-revisions
 (setq 7zr-buffer-misc nil)
@@ -271,6 +274,8 @@
 (setq 7zr-document-namechanges ())
 (setq 7zr-last-line 1)
 (setq 7zr-misc_save-pre-excursion-location 0)
+(setq 7zr-goto-rev-region-last-changed_linenum_begin 0)
+(setq 7zr-goto-rev-region-last-changed_lines 0) 
 (setq 7zr-misc_save-directory-path "")
 (setq 7zr-misc_No-newline-pos1 nil)   ; boolean return value from 7zr-remove-No-newline-msgs-and-return-their-locations-via-globals, indicating a msg was found not at end of file
 (setq 7zr-misc_No-newline-pos2 nil)  ; boolean return value from 7zr-remove-No-newline-msgs-and-return-their-locations-via-globals, indicating a msg was found at end of file
@@ -291,8 +296,15 @@
 (setq 7zr-update-7z-revisions-tag-in-metadata-buffer_file_coding_system "buffer-file-coding-system=")
 (setq 7zr-os_type (symbol-name system-type))
 (setq 7zr-os_is_windows_p (string-match-p "windows" 7zr-os_type))
-(setq 7zr-buffer_file_coding_system buffer-file-coding-system)
+(setq 7zr-buffer-file-coding-system buffer-file-coding-system)
+(setq 7zr-buffer_file_coding_system (symbol-name buffer-file-coding-system))
 (setq 7zr-buffer_is_msdos_p (string-match-p "dos" (symbol-name buffer-file-coding-system)))
+(setq 7zr-misc-value "")
+(setq 7zr-archive-name "")
+(setq 7zr-buffer-without-extension "")
+
+(setq 7zr-buffer-filename "")
+
 
 
 ;;(setq 7zr-update-7z-revisions-tag-in-metadata-file_compile-staging-directory "compile-staging-directory=")
@@ -336,24 +348,25 @@
       (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
 					; else assume linux
     (7zr-reconstruct-rev-from-patches_LINUX rev)
- ;;   (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
+  ;;  (7zr-reconstruct-rev-from-patches_MSWINDOWS rev)
     )
   
   )
-
+(setq 7zr-windows-nt nil)
 (setq 7zr-mswindows-requirements-failed nil)
 (cond
  ((string-equal system-type "windows-nt") ; Microsoft Windows
+  (setq 7zr-windows-nt t)
   (setq 7zr-temp-directory 7zr-temp-directory-windows-nt)
   (cond
 	((not (executable-find "diff.exe"))
 	 (setq 7zr-mswindows-requirements-failed "Need diff.exe from http://gnuwin32.sourceforge.net/packages/diffutils.htm"))
 	((not (executable-find "awk.exe"))
 	 (setq 7zr-awk-not-installed-for-windows t)
-;;	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm")
+	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm")
 	 )
-;;	((not (executable-find "fciv.exe"))
-;;	 (setq 7zr-mswindows-requirements-failed "Need fciv.exe for sha1sum https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533"))
+	((not (executable-find "fciv.exe"))
+	 (setq 7zr-mswindows-requirements-failed "Need fciv.exe for sha1sum https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533"))
 	((not (executable-find "7z.exe"))
 	 (setq 7zr-mswindows-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html")))
   (unless (executable-find "grep.exe")  ; dont fail if we cant find grep since its only used in one trivial function
@@ -417,12 +430,10 @@
 ;(make-variable-buffer-local '7zr-active-document_patch_number)
 
 ;; HOOKS----------------------------------------
-;; add hook to dired mode to view 7z-revisions archives using the z command
-(add-hook 'dired-mode-hook
-	  (lambda ()
-	    (define-key dired-mode-map (kbd "z")  (lambda () (interactive) (7zr-dired-7z-revisions)))
-	    )
-	  )
+;; add hook to dired mode to view 7z-revisions archives using the C-c z command
+(add-hook 'dired-mode-hook (lambda () (define-key dired-mode-map (kbd "C-c z")  (lambda () (interactive) (7zr-dired-7z-revisions)))))
+
+					;or run from dired-guess-shell-alist-user
 
 (defcustom 7zr-summary-mode-hook '(7zr-summary-mode-hook-identify)
   "Normal hook run when entering 7zr-summary mode and many related modes."
@@ -430,12 +441,12 @@
   :options '(7zr-turn-on-hl-line-mode)
   :group '7zr)
 
-(defvar 7zr-summary-mode-variant nil
-  "Non-nil if this buffer's major mode is a variant of 7zr-summary mode.
-Use (derived-mode-p \\='7zr-summary-mode) instead.")
+(setq 7zr-summary-mode-variant nil)
+;  "Non-nil if this buffer's major mode is a variant of 7zr-summary mode.
+; Use (derived-mode-p \\='7zr-summary-mode) instead."
 
 
-(defvar 7zr-summary-mode-map
+(setq 7zr-summary-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\e\t" 'kill-buffer)
     (define-key map (kbd "<RET>") '7zr-summary-view-revision)
@@ -534,12 +545,12 @@ Use (derived-mode-p \\='7zr-summary-mode) instead.")
       '(menu-item "Quit" 7zr-summary-quit
                   :help "Close all 7zr-revision-buffers"))
     (define-key map [menu-bar 7zr-summary sep] menu-bar-separator)
-    map)
-  "Keymap for `7zr-summary-mode'.")
+    map))
+;;  "Keymap for `7zr-summary-mode'.")
 
 
 (define-derived-mode 7zr-summary-mode nil "7zr-sum"
-  "Major mode for humans to read the summary of a 7z archive.
+  "Major mode for summary of a 7z archive.
 In this mode, hl-mode is active and one can select a revision
 to view from a 7z archive.
 \\{7zr-summary-mode-map}
@@ -558,7 +569,7 @@ Turning on 7z-summary mode runs the normal hook `7zr-summary-mode-hook'."
   (set (make-local-variable '7zr-summary-mode-variant) t))
 
 
-(defvar 7z-revisions-mode-map
+(setq 7z-revisions-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "<f2> C-s") '7zr-save-buffer)
     (define-key map (kbd "<f2> `") '7z-revisions-mode)
@@ -574,6 +585,7 @@ Turning on 7z-summary mode runs the normal hook `7zr-summary-mode-hook'."
     (define-key map (kbd "<f2> C-c") '7zr-modify-raw-notes-file)    
     (define-key map (kbd "<f2> c") '7zr-notes-annotation)
     (define-key map (kbd "<f2> C-r") '7zr-rename-document-and-its-archive)
+    (define-key map (kbd "<f2> C-<f2>") '7zr-regenerate-all-hashes-from-diffs)
     (define-key map (kbd "<f2> C-f") '7zr-archive-edit-metadata-file)
     (define-key map (kbd "<f2> C-d") '7zr-input-archive-directory)    
     (define-key map [menu-bar 7z-revisions-mode]
@@ -593,6 +605,9 @@ Turning on 7z-summary mode runs the normal hook `7zr-summary-mode-hook'."
       '(menu-item "Set Archive Dir" 7zr-input-archive-directory
     		  :help "Set relative archive directory."))
    
+    (define-key map [menu-bar 7z-revisions-mode regenerate-hashes]
+      '(menu-item "Regenerate all hashes from diffs" 7zr-regenerate-all-hashes-from-diffs
+		  :help "Regenerate all sha1 hash values from diffs and compare last hash with latest revision."))
     (define-key map [menu-bar 7z-revisions-mode rename-document-and-its-archive]
       '(menu-item "Rename Document & Archive" 7zr-rename-document-and-its-archive
 		  :help "Rename this document, along with its archive; use with caution."))
@@ -637,37 +652,43 @@ Turning on 7z-summary mode runs the normal hook `7zr-summary-mode-hook'."
                   :help "List all revisions in archive"))
 
     (define-key map [menu-bar 7z-revisions-mode sep] menu-bar-separator)
-    map)
-  "Keymap for `7z-revisions-mode'.")
+    map))
+;;  "Keymap for `7z-revisions-mode'.")
 
 
 
 
-(defconst 7zr-minibuffer-input-mode-map 
+(setq 7zr-minibuffer-input-mode-map 
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") 'exit-minibuffer)
+  ;  (define-key map (kbd "C-c C-k") 'exit-minibuffer)
     (define-key map [menu-bar 7zr-minibuffer-input]
       (cons "7zr-minibuffer-input" (make-sparse-keymap "7zr-minibuffer-input")))
-    map)
-"Keymap for `7zr-minibuffer-input-mode'.")
+    map))
+;; "Keymap for `7zr-minibuffer-input-mode'.")
 
-(defconst 7zr-metafile-mode-map 
+(setq 7zr-metafile-mode-map 
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") '7zr-metafile-exit)
+    (define-key map (kbd "C-c C-k") '7zr-metafile-cancel)
+    (define-key map (kbd "<f2> s") '7zr-select-tag-to-insert-into-document)
     (define-key map [menu-bar 7zr-metafile]
       (cons "7zr-metafile" (make-sparse-keymap "7zr-metafile")))
+    (define-key map [menu-bar 7zr-metafile select-tag]
+      '(menu-item "Insert Tag" 7zr-select-tag-to-insert-into-document
+                  :help "Select a tag to insert"))
     (define-key map [menu-bar 7zr-metafile view-revision]
       '(menu-item "save and exit metafile mode" 7zr-metafile-exit
                   :help "Get out of this buffer"))
-    map)
-"Keymap for `7zr-metafile-mode'.")
+    map))
+;; "Keymap for `7zr-metafile-mode'.")
 
 (define-derived-mode 7zr-metafile-mode nil "7zr-meta"
   "Major mode for humans to edit a raw file archived in 7z-revisions
 \\{7zr-metafile-mode-map}
 Turning on 7zr-metafile-mode runs the normal hook `7zr-metafile-mode-hook'."
   (set (make-local-variable '7zr-metafile-mode-variant) t)
-  (message "Press C-c C-c to save and return to last buffer, when finished editing.  You will need to disable read-only on buffer before editing.")
+  (message "Press C-c C-c to save and return to last buffer, or C-c C-k to cancel, when finished editing.  You will need to disable read-only on buffer before editing.")
  ; (hl-line-mode t)
 )
 
@@ -873,20 +894,20 @@ Uses `current-date-time-format' for the formatting the date/time.  Don't use thi
   (time-subtract (7zr-encoded-date-todays) (days-to-time (string-to-number (format-time-string "%u" (current-time)))))
 )
 				       
-(defvar 7zr-match-timestamp "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)" 
-"Matches the timestamp found in the .7z archive file")
+(setq 7zr-match-timestamp "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)") 
+;; "Matches the timestamp found in the .7z archive file")
 
-(defvar 7zr-match-timestamp2 "\\(20[0-9]\\{2\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)"
-  "regex pattern of timestamp listed from 7zip")
+(setq 7zr-match-timestamp2 "\\(20[0-9]\\{2\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)")
+;;  "regex pattern of timestamp listed from 7zip")
 
-(defvar 7zr-match-timestamp3 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)"
-  "regex pattern of timestamp, getting year month day hour minute second individually")
+(setq 7zr-match-timestamp3 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)")
+;;  "regex pattern of timestamp, getting year month day hour minute second individually")
 
-(defvar 7zr-match-timestamp4 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)"
-  "regex pattern of timestamp, getting year month day hour minute individually, used in the function 7zr-parse-timestamp3-to-encoded-timetuple")
+(setq 7zr-match-timestamp4 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\) \\([0-9]\\{2\\}\\):\\([0-9]\\{2\\}\\)")
+;;  "regex pattern of timestamp, getting year month day hour minute individually, used in the function 7zr-parse-timestamp3-to-encoded-timetuple")
 
-(defvar 7zr-match-timestamp5 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)"
-  "regex pattern of timestamp, getting year month day individually, used in the function 7zr-parse-timestamp3-to-encoded-timetuple")
+(setq 7zr-match-timestamp5 "\\(20[0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)-\\([0-9]\\{2\\}\\)")
+;;  "regex pattern of timestamp, getting year month day individually, used in the function 7zr-parse-timestamp3-to-encoded-timetuple")
 
 
 
@@ -998,7 +1019,7 @@ where it lies."
 	      (setq begin (point))
 	      (goto-char (point-max))
 	      (beginning-of-line)
-	      (forward-line -1)
+	      (previous-line)
 	      (setq end (point))
 	      )
 	    (setq point_saved (point))
@@ -1143,18 +1164,18 @@ the patch files to be deleted in the region, the revision notes of which are all
 	
 	(unless (looking-at "\\([0-9]+\\.[0-9]+\\)")
 	  (setq end-at-latest-version t)
-	  (forward-line -1)
+	  (previous-line)
 	  (looking-at "\\([0-9]+\\.[0-9]+\\)")
 	  )
 	
 	(setq to-patch (match-string-no-properties 1))
-	(forward-line -1)
+	(previous-line)
 	(setq 7zr-consolidate-line_to (7zr-line-number-at-point))
 	(setq point-to-minus-last-line (line-end-position))
 	
 	(goto-char (point-max))
 	(beginning-of-line)
-	(forward-line -1)
+	(previous-line)
 	(setq max-line (7zr-line-number-at-point))
 	(when (< max-line 3)
 	  (message "Not enough revisions to consolidate.")
@@ -1269,11 +1290,11 @@ the patch files to be deleted in the region, the revision notes of which are all
 	  (if (or (= line_from (7zr-line-number-at-point))
 		  (= 1         (7zr-line-number-at-point)))
 	      (setq abort_function t)  ;; from is at last line
-	    (forward-line -1))    ;; else assume that just end is at last line
+	    (previous-line))    ;; else assume that just end is at last line
 	  )
 	(looking-at "\\([0-9]+\\.[0-9]+\\)")		
 	(setq to-patch (match-string-no-properties 1))
-;;	(forward-line -1)
+;;	(previous-line)
 	(setq 7zr-consolidate-line_to (7zr-line-number-at-point))
 	(setq point-to-minus-last-line (line-end-position))
 	
@@ -1434,6 +1455,8 @@ what format will be outputted."
     )
   )
 
+
+
 (defun 7zr-set-some-buffer-local-vars ( window last-buffer )
   "One must call (7zr-summary-view-revision_get-buffer-local-vars) to get the vars set by this function"
   (set (make-local-variable '7zr-active-document) 7zr-buffer)
@@ -1540,8 +1563,8 @@ what format will be outputted."
 (defun 7zr-summary-view-revision ()
   (interactive)
   "Reconstruct and then view the revision pointed to by (point) in the 7zr-revisions_tmpbuffer summary buffer and call 7zr-reconstruct-rev-from-patches, unless we are looking at top most or bottom most line, or one up from bottom most line, in which case we'll open the files from this function instead of calling (7zr-reconstruct-rev-from-patches).  This function is called by the interactive command functions that select the next and previous tuples "
-  (if (not (bound-and-true-p 7zr-active-document))
-      (message "This function should only be called from a 7z-revisions summary buffer")
+ ; (if (not (bound-and-true-p 7zr-active-document))
+  ;    (message "This function should only be called from a 7z-revisions summary buffer")
     (setq 7zr-summary-view-revision_last_rev 7zr-pointer-lastviewed)
     (setq 7zr-summary-linenum-at-point (7zr-line-number-at-point))
     (7zr-summary-view-revision_get-buffer-local-vars)
@@ -1607,12 +1630,13 @@ what format will be outputted."
 	  )
 	)
       
+      (message (concat "Archived on " (7zr-get-creation-date-from-original-version 7zr-original-version) " " (gethash "0.0" (buffer-local-value '7zr-notestab 7zr-active-document_last-buffer))))
       (7zr-view-mode))
 
 	  
 ;;;;;;;;;;;; viewing latest revision
      ((looking-at 7zr-prepend-to-latest-revision)  ;; viewing latest revision
-      (forward-line -1)
+      (previous-line)
       (save-window-excursion
 	(setq 7zr-summary-last-line (7zr-line-number-at-point))
 	(7zr-reconstruct_refresh-some-pointers (number-to-string 7zr-patch-number) (7zr-line-number-at-point))
@@ -1625,6 +1649,8 @@ what format will be outputted."
       (setq 7zr-pointer-lastviewed_nearest_progeny (number-to-string 7zr-patch-number))
       (find-file-read-only (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
       (7z-revisions-mode 0)
+(when (bound-and-true-p undo-tree-mode)
+  (undo-tree-mode 1))
 	   
       (setq 7zr-pointer-lastviewed_nearest_progeny (number-to-string 7zr-patch-number))
       (7zr-set-some-buffer-local-vars "7zr-summary-view-revision" 7zr-last-buffer)
@@ -1676,6 +1702,11 @@ what format will be outputted."
       (7zr-reconstruct_refresh-some-pointers 7zr-pointer-lastviewed (7zr-line-number-at-point))
       (find-file-read-only (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
       (7z-revisions-mode 0)
+      (when (bound-and-true-p undo-tree-mode)
+	(undo-tree-mode 1))
+
+(when (bound-and-true-p undo-tree-mode)
+  (undo-tree-mode 1))
 	 ; (7zr-summary-reconst-last-del)
       (setq 7zr-summary-reconst-last (concat 7zr-temp-directory  "rev" (number-to-string 7zr-patch-number) "_of_" 7zr-original-version))
 ;	   (when (bound-and-true-p 7zr-last-column)  ; this temporarily fixes the error that always arises when trying to view revision from the very last line in the summary view.
@@ -1725,7 +1756,7 @@ what format will be outputted."
 ;;;;;;;;; otherwise
      (t nil)
      )  ; cond
-    )
+ ;   ) ; if
   )
 
 
@@ -1913,22 +1944,29 @@ them."
 (defun 7zr-view_previous_page ()
   "This function is called from a key binding of 7zr-view-mode"
   (interactive)
-  (if (7zr-not-viewing-p "7zr-summary-view-revision")      
-      (message "you must be viewing a 7z-revisions revision to use this function")
-    (when (not (bound-and-true-p 7zr-original-page))
+;  (if (7zr-not-viewing-p "7zr-summary-view-revision")      
+ ;     (message "you must be viewing a 7z-revisions revision to use this function")
+    (when (not (bound-and-true-p 7zr-original-page))  ;; stop at rev 0.0
       (7zr-save-last-line-column)
       (setq 7zr-last-buffer 7zr-active-document_last-buffer)
       (kill-buffer)
-;  (set-buffer 7zr-revisions_tmpbuffer)
+
       (set-buffer 7zr-last-buffer)
-      (forward-line -1)
-      (7zr-summary-view-revision) 
-    ;(7zr-goto-last-line-column)
+      (previous-line)
+      (7zr-summary-view-revision)
+      
       )
+  ;  )
     )
+
+(defun 7zr-view_previous_pageDEFUNCT ()
+    "Keyboard macro."
+  (interactive)
+  (kmacro-exec-ring-item (quote ([3 113 up return] 0 "%d")) nil)
   )
 
-(defvar 7zr-view-mode-map 
+
+(setq 7zr-view-mode-map 
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c d") '7zr-view_jump_to_next_difference)   
     (define-key map (kbd "C-c e") '7zr-view_jump_to_previous_difference)
@@ -1943,7 +1981,6 @@ them."
     (define-key map (kbd "t") '7zr-view_datetime)
     (define-key map (kbd "u") '7zr-view-quit_view_diff)
     (define-key map (kbd "q") '7zr-view-quit)
-    
     (define-key map (kbd "<f2> C-p") '7zr-goto-rev-region-last-changed)
     (define-key map [menu-bar 7zr-view]
       (cons "7zr-view" (make-sparse-keymap "7zr-view")))
@@ -1979,8 +2016,8 @@ them."
     (define-key map [menu-bar 7zr-view 7zr-view_datetime]
       '(menu-item 7zr-view_date 7zr-view_datetime
                   :help "View datetime of current revision."))
-    map)
-  "Keymap while 7zr-view-mode is active.")
+    map))
+;;  "Keymap while 7zr-view-mode is active.")
 
 ;;;###autoload
 (define-minor-mode 7zr-view-mode
@@ -2109,7 +2146,7 @@ This function is called by (7zr-view-raw-diff-quit_then_view_revision), (7zr-sum
   (kill-buffer)
 ;  (set-buffer 7zr-revisions_tmpbuffer)
  (set-buffer 7zr-last-buffer) 
- (forward-line -1)
+ (previous-line)
   (7zr-delete-file-if-exists 7zr-pointer-lastviewed_raw_diff_file)
   (7zr-summary-view-raw-diff-file) 
 
@@ -2122,7 +2159,7 @@ This function is called by (7zr-view-raw-diff-quit_then_view_revision), (7zr-sum
   (beginning-of-line)
   (if (re-search-forward "^\\([0-9]+\\).*$" nil t)
       (beginning-of-line)
-    (forward-line -1)
+    (previous-line)
     )
   )
 
@@ -2234,7 +2271,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
       (forward-line 1)
       (7zr-summary-view-raw-diff-file))
      ((looking-at 7zr-prepend-to-latest-revision) ;; if last row highlighted, view last diff instead
-	(forward-line -1)
+	(previous-line)
 	(7zr-summary-view-raw-diff-file))
 
      ;; viewing any  diff file
@@ -2251,6 +2288,8 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
       (setq 7zr-last-buffer (current-buffer))
       (find-file 7zr-pointer-lastviewed_raw_diff_file)
       (7z-revisions-mode 0)
+(when (bound-and-true-p undo-tree-mode)
+  (undo-tree-mode 1))
       (7zr-set-some-buffer-local-vars "7zr-summary-view-raw-diff-file" 7zr-last-buffer)
 	   ;; make text buttons of each hunk which can be clicked to go to its respective context, in lieu of the r keybind
       (beginning-of-buffer)
@@ -2284,7 +2323,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
     )
   )
 
-(defvar 7zr-view-raw-diff-file-mode-map 
+(setq 7zr-view-raw-diff-file-mode-map 
   (let ((map (make-sparse-keymap)))
     
     (define-key map (kbd "C-c p") '7zr-view-raw-diff_previous_page)
@@ -2335,8 +2374,8 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
     (define-key map [menu-bar 7zr-view-raw-diff 7zr-view-raw-diff_datetime]
       '(menu-item "Datetime of diff" 7zr-view_datetime
                   :help "View datetime of current diff."))
-    map)
-  "Keymap while 7zr-view-raw-diff-file-mode is active.")
+    map))
+;;  "Keymap while 7zr-view-raw-diff-file-mode is active.")
 
 ;;;###autoload
 (define-minor-mode 7zr-view-raw-diff-file-mode
@@ -2367,13 +2406,13 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
   :group '7z-revisions-mode
   :type 'string)
 
-(defvar 7zr-date-time-format "%Y-%m-%d_%H:%M:%S"
-  "Format of date to func
-See help of `format-time-string' for possible replacements")
+(setq 7zr-date-time-format "%Y-%m-%d_%H:%M:%S")
+;;  "Format of date to func
+;;See help of `format-time-string' for possible replacements")
 
-(defvar 7zr-date-time-format-win "%Y-%m-%d_%H%M%S"
-  "Format of date to func, compatible with windows filenames
-See help of `format-time-string' for possible replacements")
+(setq 7zr-date-time-format-win "%Y-%m-%d_%H%M%S")
+;;  "Format of date to func, compatible with windows filenames
+;;See help of `format-time-string' for possible replacements")
 
 
 
@@ -2393,7 +2432,9 @@ See help of `format-time-string' for possible replacements")
 
  (defun 7zr-toggle-highlight ()
    (interactive)
-   (if (7zr-string-starts-with-p (buffer-name (current-buffer)) "7z-revisions_of_")
+   (if (and
+	(fboundp 'hl-line-mode)
+	(7zr-string-starts-with-p (buffer-name (current-buffer)) "7z-revisions_of_"))
        (hl-line-mode 1)
      (hl-line-mode 0)
      )
@@ -2519,7 +2560,7 @@ See help of `format-time-string' for possible replacements")
 (defun 7zr-input-note ( color )
   "prompt for input of revision note, to be added on next save"
   (interactive "P")
-  (setq 7zr-note (read-string (concat "Enter your " (car (rassoc color 7zr-color->number )) " note:" )))
+  (setq 7zr-note (read-string (concat "Enter " (car (rassoc color 7zr-color->number )) " note:" )))
 ;  (message "%s" 7zr-revision-note)
   )
 
@@ -2544,10 +2585,17 @@ See help of `format-time-string' for possible replacements")
       (cond
        ((and
 	 (string= 7zr-window "7z-revisions")
-	 (looking-at "\\([0-9]+\\.[0-9]+\\)")
+	 (not (beginning-of-line))
+	 (looking-at "\\([0-9]+\\.[0-9]+\\)"))
+	(setq 7zr-summary-rev-at-point (match-string-no-properties 1))
+	(setq rev_string 7zr-summary-rev-at-point))
+	
+       ((and
+	 (string= 7zr-window "7z-revisions")
+	 (= (7zr-line-number-at-point) 1)
 	 )
-	(setq rev_string (match-string-no-properties 1)))
-      ((or
+	(setq rev_string "0.0"))
+       ((or
 	(string= 7zr-window "7zr-summary-view-revision")
 	(string= 7zr-window "7zr-summary-view-raw-diff-file")
 	)
@@ -2582,7 +2630,7 @@ See help of `format-time-string' for possible replacements")
   )
 
 (defun 7zr-edit-note ( rev_string default_note )
-    (7zr-escape-quotes (read-from-minibuffer (concat "Edit note rev " rev_string ", C-c C-c when finished:\n") default_note 7zr-minibuffer-input-mode-map))
+    (7zr-escape-quotes (read-from-minibuffer (concat "Edit note rev " rev_string ", C-c C-c when finished, C-] to cancel:\n") default_note 7zr-minibuffer-input-mode-map))
     )
 
 (defun 7zr-escape-quotes ( notes_string)
@@ -2684,6 +2732,16 @@ See help of `format-time-string' for possible replacements")
   (replace-regexp-in-string "\\..+" "" filenamestring)
 )
 
+(defun 7zr-sans-archive-extension (filenamestring)
+  "Strips the extension from the filename if its the 7zr-archive-extension."
+  (let ((len (length 7zr-archive-extension)))
+    (if (string= (substring filenamestring (- len) nil) 7zr-archive-extension)
+	(substring filenamestring 0 (- len))
+      filenamestring
+      )
+    )
+  )
+
 
 (defun 7zr-what-is-extension-of-filename ( filenamestring )
   "Returns the file extension.  Also if there is no extension, then the 7zr-dot variable is set to a blank string.  The variable 7zr-dot must be declared in the calling function. "
@@ -2738,7 +2796,7 @@ See help of `format-time-string' for possible replacements")
 	      (setq start_rectangle (point))
 	      (end-of-buffer)
 	      (beginning-of-line)
-	      (forward-line -2)
+	      (previous-line 2)
 	      (forward-char (1- name_column_num))
 	      (setq end_rectangle (+ (point) 20))
 	      (setq rectangle (delete-extract-rectangle start_rectangle end_rectangle))
@@ -2849,7 +2907,7 @@ See help of `format-time-string' for possible replacements")
 ;	(setq 7zr-patch-number (nth 1 listrevs_returnval))
 ;	(setq 7zr-original-version (car listrevs_returnval))
 	(newline)
-	(forward-line -1)
+	(previous-line)
 	(beginning-of-line)
 	(setq saved-line-pos (point))
 	)
@@ -2996,7 +3054,7 @@ See help of `format-time-string' for possible replacements")
 (defun 7z-revisions ()
   "This function is called from the main document and finds the 7zr-original-version variable and displays all the revisions in an interactive buffer, which is stored in the variable 7zr-revisions_tmpbuffer, with names of patches, discarding any filenames in the archive that arent numbers per number-or-marker-p, and also gets the 7zr-patch-number.  When a revision is selected and the enter key is pressed, or the u key in the case of displaying the respective diff files, then the (7zr-summary-view-revision) function takes over."
   (interactive)
-  (setq cntr 0) ; debug
+ ; (setq cntr 0) ; debug
   
   
   (if (boundp 'evil-mode)
@@ -3016,13 +3074,12 @@ See help of `format-time-string' for possible replacements")
   (setq 7zr-latest-revision_datetime "")
   
   (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name  (file-name-nondirectory (buffer-file-name (current-buffer)))))
-  (if (buffer-live-p 7zr-buffer-misc)
+  (if (buffer-live-p (get-buffer 7zr-buffer-misc))
       (switch-to-buffer 7zr-buffer-misc)
 					; else
     (if (not (file-exists-p (concat 7zr-archive-directory 7zr-archive-name)))
 	(message (concat "Archive " 7zr-archive-name " has not yet been created yet, neither via 7z-revisions-mode nor by typing M-x 7zr-commit."))
-      
-      (if (eql (string-match-p "No files to process" (shell-command-to-string (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " "  (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name))  " " (7zr-shell-quote-argument 7zr-archive-created-by-message)))) nil)
+      (if (7zr-is-a-valid-archive-p)
 	  (progn
 	    
 	    (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-archive-created-by-message))
@@ -3183,10 +3240,13 @@ See help of `format-time-string' for possible replacements")
 	    (make-local-variable 'global-hl-line-mode)
 	    (toggle-read-only 1)
 	    (set-buffer-modified-p nil)
-	    (hl-line-mode 1)
+	    (if (fboundp 'hl-line-mode)
+		(hl-line-mode 1)
+	      )
+	    
 	    (kill-buffer 7zr-revisions_with-temp-buffer)
 	    (end-of-buffer)
-	    (forward-line -1)
+	    (previous-line)
 	    ;; local variables set after this point seem to work
 	    (set (make-local-variable '7zr-summary-page) t)
 	    (set (make-local-variable '7zr-active-document_buffer) 7zr-revisions_original_buffer) 
@@ -3223,57 +3283,85 @@ See help of `format-time-string' for possible replacements")
 
   
 (defun 7zr-dired-7z-revisions ()
-  "This function can be called from dired using the z key.  This function finds the 7zr-original-version variable and displays all the revisions in an interactive buffer, which is stored in the variable 7zr-revisions_tmpbuffer, with names of patches, discarding any filenames in the archive that arent numbers per number-or-marker-p, and also gets the 7zr-patch-number.  When a revision is selected and the enter key is pressed, or the j key in the case of displaying the respective diff files, then the (7zr-summary-view-revision) function takes over."
+  "This function can be called from dired using the C-c z key combination.  This function finds the 7zr-original-version variable and displays all the revisions in an interactive buffer, which is stored in the variable 7zr-revisions_tmpbuffer, with names of patches, discarding any filenames in the archive that arent numbers per number-or-marker-p, and also gets the 7zr-patch-number.  When a revision is selected and the enter key is pressed, or the j key in the case of displaying the respective diff files, then the (7zr-summary-view-revision) function takes over."
   (interactive)
-  (setq cntr 0) ; debug
-  (unless (file-directory-p 7zr-temp-directory)
-    (make-directory 7zr-temp-directory t))
-  (setq 7zr-active-document_buffer (file-name-nondirectory (dired-get-file-for-visit)))
-  (setq 7zr-active-document 7zr-active-document_buffer)
-  (setq 7zr-buffer (file-name-nondirectory (dired-get-file-for-visit)))
-
-
-  (setq 7zr-archive-directory (file-name-directory (dired-get-file-for-visit)))
-  (setq 7zr-revisions_original_buffer (current-buffer))
-
-  (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer))
-  (setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer))
-  (setq 7zr-archive-name 7zr-buffer)  
-  (when (7zr-string-starts-with-p 7zr-buffer 7zr-archive-prefix)
-    (setq 7zr-buffer (string-remove-prefix 7zr-archive-prefix 7zr-buffer)))
-  
-  (setq 7zr-buffer-filename 7zr-buffer)
-  
-  (setq 7zr-latest-revision_size "")
-  (setq 7zr-latest-revision_datetime "")
- 
-
-  (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name  7zr-buffer-filename))
-  (if (buffer-live-p 7zr-buffer-misc)
-      (switch-to-buffer 7zr-buffer-misc)
+					; (setq cntr 0) ; debug
+  (if (string= (7zr-sans-archive-extension (dired-get-file-for-visit)) (dired-get-file-for-visit))
+      (message (concat "7z-revision only works with archives that end in a " 7zr-archive-extension " extension."))
 					; else
-    (if (not (string= 7zr-buffer-filename-extension 7zr-archive-extension-suffix))
-	(message (concat "File " 7zr-archive-name " is not a " 7zr-archive-extension-suffix " archive."))    
-      (if (eql (string-match-p "No files to process" (shell-command-to-string (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " "  (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name))  " " (7zr-shell-quote-argument 7zr-archive-created-by-message)))) nil)
+    
+    (unless (file-directory-p 7zr-temp-directory)
+      (make-directory 7zr-temp-directory t))
+    
+    
+;    (setq 7zr-active-document_buffer (current-buffer))
+ ;   (setq 7zr-active-document 7zr-active-document_buffer)
+    (setq 7zr-buffer (file-name-nondirectory (7zr-sans-archive-extension (dired-get-file-for-visit))))
+    
+
+    (setq 7zr-archive-directory (file-name-directory (dired-get-file-for-visit)))
+    (setq 7zr-revisions_original_buffer (current-buffer))
+  
+    (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer))
+    (setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer))
+    (setq 7zr-archive-name (file-name-nondirectory (dired-get-file-for-visit)))  
+    (when (7zr-string-starts-with-p 7zr-buffer 7zr-archive-prefix)
+      (setq 7zr-buffer (string-remove-prefix 7zr-archive-prefix 7zr-buffer)))
+    
+    (setq 7zr-buffer-filename 7zr-buffer)
+    
+    (setq 7zr-latest-revision_size "")
+    (setq 7zr-latest-revision_datetime "")
+  
+
+    (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name  7zr-buffer))
+    
+    (let ((tmpdir (concat 7zr-temp-directory (7zr-random-str 30))) tmpfiles tmpfiles2 newfile_name newfile)
+      (save-window-excursion  
+	(make-directory tmpdir t)
+	(setq tmpfiles  (directory-files tmpdir 'full)) 
+	(shell-command (concat "7zr e -aoa -o" tmpdir " " 7zr-archive-name " -i\\!" 7zr-prepend-to-latest-revision "*"))
+	(setq tmpfiles2 (directory-files tmpdir 'full))
+	(dolist (x tmpfiles2 newfile_name) (progn (when (not (member x tmpfiles)) (setq newfile_name x))))
+	(if (not newfile_name)
+	    (error "cant seem to open this archive")
+					; else
+	  (setq 7zr-original-version (string-remove-prefix 7zr-prepend-to-latest-revision (file-name-nondirectory newfile_name )))
+      	  (setq newfile (find-file-read-only newfile_name))
+	  (7zr-populate-initial-global-vars_dired)
+	  (kill-buffer newfile)
+	  (7zr-delete-file-if-exists  newfile_name)
+	  (delete-directory tmpdir)
+	  )
+	)
+      )
+    (if (buffer-live-p (get-buffer 7zr-buffer-misc))
+	(switch-to-buffer 7zr-buffer-misc)
+					; else
+    ; (if (not (string= 7zr-buffer-filename-extension 7zr-archive-extension-suffix))
+					;	(message (concat "File " 7zr-archive-name " is not a " 7zr-archive-extension-suffix " archive."))
+      (if (7zr-is-a-valid-archive-p) 
 	  (progn
-	    (7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-archive-created-by-message))
-	    (setq 7zr-patch-number 1.0)
+	 ; (7zr-extract-a-file-to-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version)
+	    (setq 7zr-summary-last-line-last 0)
+	    (set (make-local-variable '7zr-window)   "dired-buffer")
 	    (setq 7zr-revisions_lastbuffer (current-buffer))
-	    (setq 7zr-revisions_tmpbuffer (generate-new-buffer-name (concat "7zr-revisions_of_" 7zr-buffer-filename)))
+	    (setq 7zr-revisions_tmpbuffer (generate-new-buffer-name (concat "7zr-revisions_of_" 7zr-buffer)))
 	    (get-buffer-create 7zr-revisions_tmpbuffer)
-	    (setq 7zr-revisions_tmpbuffer2 (generate-new-buffer-name (concat "7zr-revisions_with-temp-buffer_of_" 7zr-buffer-filename)))
+	    (setq 7zr-revisions_tmpbuffer2 (generate-new-buffer-name (concat 7zr-revisions_tmpbuffer-default_prefix_name 7zr-buffer)))
 	    (get-buffer-create 7zr-revisions_tmpbuffer2)
-					;	  (setf (buffer-local-value '7zr-active-document 7zr-revisions_tmpbuffer) '7zr-buffer)
-;	  (let* ((#1=#:v 7zr-revisions_tmpbuffer))
-;	    (with-current-buffer #1#
-;	      (set (make-local-variable '7zr-active-document) 7zr-buffer)))
-	    
+ ;	  (setf (buffer-local-value '7zr-active-document 7zr-revisions_tmpbuffer) '7zr-buffer)
+	    (set (make-local-variable '7zr-active-document_buffer) (current-buffer))
+	    (with-current-buffer 7zr-revisions_tmpbuffer
+	      (set (make-local-variable '7zr-active-document) 7zr-revisions_original_buffer ))
+	      
 	    (set-buffer 7zr-revisions_tmpbuffer)
+	  
 ;	  (make-local-variable '7zr-archive-directory)
 	  ;(setq 7zr-archive-directory (buffer-local-value '7zr-archive-directory 7zr-revisions_original_buffer))
 ;(erase-buffer)
 
-	    (let ((ofile 7zr-archive-name)
+	    (let ((zfile (concat 7zr-archive-directory 7zr-archive-name))
 		  files file sum col timetuple savepoint reached-minuses patch highest-patch 7zdatetime 7zsize 7zname)
 	      (set-buffer 7zr-revisions_tmpbuffer2)
 	  
@@ -3281,7 +3369,7 @@ See help of `format-time-string' for possible replacements")
 	      (setq 7zr-revisions_with-temp-buffer (current-buffer))
     
 	      (save-window-excursion
-		(call-process "7z" nil t nil "l" ofile)
+		(call-process "7z" nil t nil "l" zfile)
 		(goto-char (point-min))
     
 ;    (re-search-forward "[[:blank:]]Date[[:blank:]]+Time[[:blank:]]+Attr[[:blank:]]+Size[[:blank:]]+Compressed[[:blank:]]+Name")
@@ -3294,21 +3382,22 @@ See help of `format-time-string' for possible replacements")
 		  (setq 7zsize (match-string-no-properties 3))
 		  (setq 7zname (match-string-no-properties 5))
 		  (beginning-of-line)
-	    
+		    
 ;      (setq timetuple (apply #'encode-time (parse-time-string 7zdatetime)))
 	    
-		  (if (and (7zr-string-starts-with-p 7zname 7zr-buffer-without-extension)  ; find original version
+		  (if (and (7zr-string-starts-with-p 7zname 7zr-original-version)  ; find original version
 			   (not (string= 7zname 7zr-archive-created-by-message))  ; not the archive identifier
 			   )
 		      (progn
-			(setq 7zr-original-version 7zname)
+			
+		;	(setq 7zr-original-version 7zname)
 			(setq 7zr-current-original-version 7zr-original-version)
 			(make-local-variable '7zr-current-original-version)
 			
 			(set-buffer 7zr-revisions_tmpbuffer)
 			(setq 7zr-current-original-version 7zr-original-version)
 			(make-local-variable '7zr-current-original-version)
-
+		      
 		    
 			(insert 7zname)
 			(insert-tab)
@@ -3334,13 +3423,13 @@ See help of `format-time-string' for possible replacements")
 			(insert-tab)
 			(insert 7zdatetime)
 			(newline)
-		      
+			  
 			(set-buffer 7zr-revisions_with-temp-buffer)
 			(setq patch (string-to-number 7zname))
 			(when (> patch 7zr-patch-number)            ; if patch is higher it becomes highest
 			  (setq 7zr-patch-number patch)	  
 			  )
-		    
+			
 			)
 		  
 		      )
@@ -3351,19 +3440,19 @@ See help of `format-time-string' for possible replacements")
 		  )           ; while
 		)
 	      )
-    
+	  
  ;    (error "Not a valid 7z archive file")
     
 	    
 	    (set-buffer 7zr-revisions_tmpbuffer)
-	    (when 7zr-track-md5sum-hashes-p
-	      (7zr-revisions-load-hashtable-unsecure)
-	      )
+	    
+	    (set (make-local-variable '7zr-summary-page) t)
+	    
 	    (switch-to-buffer 7zr-revisions_tmpbuffer)
 	    (goto-char (point-min))
 	    (when (and 
 		   (re-search-forward 7zr-original-version nil t)
-     ;		 (not (string= (format-mode-line "%l") "1"))
+	  ;		 (not (string= (format-mode-line "%l") "1"))
 		   (not (equal (7zr-line-number-at-point) 1))
 		   )
 	      (beginning-of-line)
@@ -3383,26 +3472,51 @@ See help of `format-time-string' for possible replacements")
 	    (insert 7zr-latest-revision_size)
 	    (insert-tab)
 	    (insert 7zr-latest-revision_datetime)
-;	  (delete-backward-char 1)
-	    (7zr-summary-sort-1)
+     ;	  (delete-backward-char 1)
+	    (when (> 7zr-patch-number 1)
+	      (7zr-summary-sort-1))
 	    (goto-char (point-min))
 	    (7zr-summary-mode)
 	    (make-local-variable 'global-hl-line-mode)
 	    (toggle-read-only 1)
 	    (set-buffer-modified-p nil)
-	    (hl-line-mode 1)
+	    (if (fboundp 'hl-line-mode)
+		(hl-line-mode 1))
 	    (kill-buffer 7zr-revisions_with-temp-buffer) ; 7zr-revisions_tmpbuffer2
 	    (end-of-buffer)
-	    (forward-line -1)
-	    (7zr-set-some-buffer-local-vars "7zr-dired-7z-revisions" (current-buffer))
-	    )
+	    (previous-line)
+	    (7zr-set-some-buffer-local-vars "7zr-dired-7z-revisions"  7zr-revisions_original_buffer)
+	    (set (make-local-variable '7zr-summary-page) t)
+	    (set (make-local-variable '7zr-active-document_buffer) 7zr-revisions_original_buffer) 
+	      
+	    (switch-to-buffer 7zr-revisions_tmpbuffer)
+	    (set (make-local-variable '7zr-active-document_7zr-revisions_original_buffer) 7zr-revisions_original_buffer)
+	    (set (make-local-variable '7zr-active-document_7zr-revisions_original_buffer_name) "hithere")
+	    (set (make-local-variable '7zr-active-document_7zr-patch-number) 7zr-patch-number)
+
+	    (7zr-revisions-load-notestab-unsecure)
+	   ; (when 7zr-track-md5sum-hashes-p
+	    (7zr-revisions-load-hashtable-unsecure)
+					;  )
+	    
+	    ) ; progn
+	  
       ; else fail
 	(message (concat "The file " 7zr-buffer " is not a 7z-revisions.el archive!"))
 	)
-      )
-    )   
-)         ; 7zr-dired-7z-revisions
+      ) ; if buffer-live
+     ; )
+    )
+  )
   
+
+(defun 7zr-random-str ( len )
+  "Returns a string consisting of lower and upper case english alphabetical characters of length LEN"
+  (let* (result (alphab [ 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 86 87 88 89 90 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 118 119 120 121 122 ]) (alphab_len (length alphab)) (result_stack '()))
+    (dotimes (x len (concat result_stack)) (push (aref alphab (% (abs (random)) alphab_len)) result_stack))
+    )
+  )
+
 
 
 (defun 7zr-summary-sort-1 ()
@@ -3533,9 +3647,14 @@ and very last row in the sorting."
 (defun 7zr-summary-previous-line ()
   (interactive)
   (previous-line)
-  (when (looking-at "\\([0-9]+\\.[0-9]*\\)")
+  (if (looking-at "\\([0-9]+\\.[0-9]*\\)")
     (message (gethash (match-string-no-properties 1) 7zr-notestab))
+					; else
+    (if (= (7zr-line-number-at-point) 1)
+	(message (gethash "0.0" 7zr-notestab))
+      )
     )
+  
   )
 
 
@@ -3579,7 +3698,89 @@ STRING is the output line from PROC.  Not used."
        (substring string 0 (- len 1)))
       (t string))))
 
+(defun 7zr-is-a-valid-archive-p ()
+  (let (validp)
+    (save-window-excursion
+      (when (file-exists-p (concat 7zr-archive-directory 7zr-archive-name))
+	(setq validp (eql (string-match-p "No files to process" (shell-command-to-string (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " "  (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name))  " " (7zr-shell-quote-argument 7zr-archive-created-by-message)))) nil))
+	(7zr-delete-file-from-temp-if-exists 7zr-archive-created-by-message)
+	)
+      )
+    validp
+    )
+  )
+  
 
+
+
+(defun 7zr-regenerate-all-hashes-from-diffs ()
+  "In case the hash file somehow gets hozed, you can always regenerate it.  Althouth, the old hashes are not deleted from the hash file, but rather appended to the end of the file, overwriting their prior values when the hash file is loaded."
+  (interactive)
+  (unless (file-directory-p 7zr-temp-directory)
+    (make-directory 7zr-temp-directory t))
+  (7zr-populate-initial-global-vars)
+  (7zr-set-archive-directory-full 7zr-archive-directory)
+  (setq 7zr-revisions_original_buffer (current-buffer))
+  (setq 7zr-revisions_original_buffer_name (buffer-name (current-buffer))) 
+  (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer))
+  (setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer))
+  (setq 7zr-latest-revision_size "")
+  (setq 7zr-latest-revision_datetime "")
+  
+  (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name  (file-name-nondirectory (buffer-file-name (current-buffer)))))
+  (when (buffer-live-p (get-buffer 7zr-buffer-misc))
+    (switch-to-buffer 7zr-buffer-misc)
+    (7zr-summary-quit))		
+  (if (not (7zr-is-a-valid-archive-p))
+      (message "This function can only be called from a document associated with a 7z-revisions archive")
+					; else
+    
+    (when (yes-or-no-p (concat "Regenerate all hashes for " 7zr-archive-directory 7zr-archive-name ", really?"))
+      (let (archive_info revs_tmpbuffer_name  revs_tmpbuffer (orig_buffer 7zr-revisions_original_buffer) patch-number_str lines current-patch (save-dir default-directory) hash hashes_str hash patched_rev)
+	(setq archive_info (7zr-list-revs 7zr-revisions_original_buffer_name))
+	
+	(setq 7zr-original-version (car archive_info))
+	(setq revs_tmpbuffer_name (car (cdr archive_info)))
+	(setq 7zr-patch-number (car (cdr (cdr archive_info))))
+	(setq patch-number_str (number-to-string  7zr-patch-number))
+	(setq lines (nth 3 archive_info))
+	(setq hashes_str (concat "\n;; The following " (number-to-string lines) " lines ending in rev " patch-number_str " were added on " (7zr-current-date-time) "\n"))
+	(setq 7zr-misc-value lines)
+	(set-buffer revs_tmpbuffer_name)
+        (setq revs_tmpbuffer (current-buffer))
+	(goto-char (point-min))
+	(forward-line)
+;(setq saved-dir default-directory)
+	(7zr-extract-a-file-to-temp-directory nil 7zr-original-version)
+	(7zr-rename-file-from-temp-if-exists  7zr-original-version "wip")
+	(setq hashes_str (concat hashes_str "(puthash \"0.0\" \"" (7zr-sha1-of-file-in-temp-directory "wip") "\" 7zr-hasht)\n"))
+	(cd 7zr-temp-directory)
+	(while (looking-at "\\([0-9]+\\.[0-9]*\\)[[:blank:]]")
+	  (setq current-patch (match-string-no-properties 1))
+	  (7zr-extract-a-file-to-temp-directory nil current-patch) 
+	  (setq hash (7zr-forward-patch-in-temp-directory "wip" current-patch))
+	  (setq hashes_str (concat  hashes_str "(puthash \"" current-patch   "\" \"" hash "\" 7zr-hasht)\n"))
+	  (7zr-delete-file-from-temp-if-exists current-patch)
+	  (message (concat current-patch " of " patch-number_str))
+	  (forward-line)
+	  )  ; while
+	(set-buffer orig_buffer)
+	(cd save-dir)
+	(7zr-add-to-hashfile hashes_str)
+	(7zr-extract-a-file-to-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version )
+	(if (string= hash (7zr-sha1-of-file-in-temp-directory (concat 7zr-prepend-to-latest-revision 7zr-original-version)))
+	    (message "regenerated hashvalues are all valid.")
+	  (message "invalid hashes!")
+	  )
+	(7zr-delete-file-from-temp-if-exists (concat 7zr-prepend-to-latest-revision 7zr-original-version))
+	(kill-buffer revs_tmpbuffer_name) 
+	(set-buffer orig_buffer)
+	)
+      )
+    )    
+  )
+
+    
 (defun 7zr-list-hashkeys ( hashtable )
   "Returns a sorted list of keys from the hashtable passed as an argument"
   (let ((keylist '()))
@@ -3640,7 +3841,7 @@ STRING is the output line from PROC.  Not used."
 
 (defun 7zr-sha1-of-file-in-temp-directory ( file_in_temp_directory )
   "Returns the sha1 of a file that exists in the directory contained in the variable 7zr-temp-directory, which is ussually just /tmp/"
-  (let (sha1 (saved-buffer (current-buffer))(saved-dir (substring (pwd) 10)) (tmpbuffer_name (generate-new-buffer-name "sha1-generate")) tmpbuffer)
+  (let (sha1 (saved-buffer (current-buffer))(saved-dir default-directory) (tmpbuffer_name (generate-new-buffer-name "sha1-generate")) tmpbuffer)
     (save-window-excursion
 
       (cd 7zr-temp-directory)
@@ -3756,38 +3957,41 @@ STRING is the output line from PROC.  Not used."
       ;; 	  nil
 					; else
 	  ;	    (setq lines (string-to-number (7zr-string-trim-final-newline (shell-command-to-string (concat "awk \"END { print NR }\"" (7zr-shell-quote-argument 7zr-temp-directory) 7zr-prepend-to-hash-file (7zr-shell-quote-argument 7zr-current-original-version))))))
-	(setq file_attributes_list (file-attributes (concat 7zr-temp-directory 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension)))
-(if file_attributes_list
-	    (setq lines (/ (nth 7 file_attributes_list) 68))  ; instead of using awk to get the number of lines, number of lines are estimated based on 68 characters per line in the notes file
+      (setq file_attributes_list (file-attributes (concat 7zr-temp-directory 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension)))
+      (if file_attributes_list
+	  (setq lines (/ (nth 7 file_attributes_list) 68))  ; instead of using awk to get the number of lines, number of lines are estimated based on 68 characters per line in the notes file
 					; else
-	  (setq lines 100)
-	  )
+	(setq lines 100)
+	)
 
 		   
-	(setq lines (+ lines 100))	  	  
+      (setq lines (+ lines 200))	  	  
 ;;	(set (make-local-variable '7zr-active-document_hash-of-notes-file) hash)
 ;	    (set (make-local-variable '7zr-active-document_hash_of_notes_file) 7zr-hash-of-notes-file)
 
-	(set (make-local-variable '7zr-notestab)  (make-hash-table :size lines :test 'equal))
+      (set (make-local-variable '7zr-notestab)  (make-hash-table :size lines :test 'equal))
 ;	    (defconst 7zr-notestab (make-hash-table :size lines :test 'equal))
 
 ;	  (set (make-local-variable '7zr-notestab) 7zr-notestab)
 ;	  (make-local-variable '7zr-hasht)
-	(when file_attributes_list
-	  (load-file (concat 7zr-temp-directory 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension))
-	  )
-;;	)	
+      (when file_attributes_list
+	(load-file (concat 7zr-temp-directory 7zr-prepend-to-notes-file 7zr-original-version 7zr-notes-file-extension))
+	)
+      ;;	)	
       )
     )
   )
     
   
 
-    
+;; (defun 7zr-time-view_previous_page ()
+;;   (interactive)
+;;   (pp (measure-time (7zr-view_previous_page)))
+;;   )
 
 (defun 7zr-revisions-validate-rev-p ( rev-pointer )
 "Check revision against hash"
-  (let ((rev-hash "") (hash-from-table "") (hash-rev-to-check-against ""))
+  (let (validp (rev-hash "") (hash-from-table "") (hash-rev-to-check-against ""))
     (setq hash-rev-to-check-against rev-pointer)
 
     ;; (if (eql direction -1)  ; if we were walking upward the valid hash will be the hash associated with the nearest ancestor?
@@ -3800,12 +4004,17 @@ STRING is the output line from PROC.  Not used."
 	      
 					; else check against hash
 
-;;	    (setq rev-hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument (concat 7zr-temp-directory "rev" rev-pointer "_of_"  7zr-original-version)) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
-	    (setq rev-hash (7zr-sha1-of-file-in-temp-directory (concat 7zr-temp-directory "rev" rev-pointer "_of_"  7zr-original-version))) 
+	    (setq rev-hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument (concat 7zr-temp-directory "rev" rev-pointer "_of_"  7zr-original-version)) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1)))))) ;; comment out
+	  ;;  (setq rev-hash (7zr-sha1-of-file-in-temp-directory (concat 7zr-temp-directory "rev" rev-pointer "_of_"  7zr-original-version)))  ;; comment out
 	    (setq hash-from-table (gethash hash-rev-to-check-against 7zr-hasht))
-	    (string= rev-hash hash-from-table)
+	    (setq validp (string= rev-hash hash-from-table))
+	    (when (not validp)
+	      (message (concat "7zr invalid pointer " rev-pointer ))
+	      )
+	    validp
 
 	    )
+	(message (concat "7zr invalid pointer " rev-pointer " as file not found."))
 	nil
 	) ; if file exists
       ) ; let
@@ -3828,7 +4037,7 @@ STRING is the output line from PROC.  Not used."
   )
 
 (defun 7zr-delete-file-from-temp-if-exists  ( filename )
-  " Delete a filename if it exists, and return nil if it doesnt."
+  " Delete a file from the directory specified in the global variable 7zr-temp-directory, if the file exists, and return nil if it doesnt."
   (let (filename_trimmed (saved-directory default-directory))
     (setq filename_trimmed (7zr-trim-l (7zr-trim-r filename)))
     (cd 7zr-temp-directory)
@@ -3842,6 +4051,11 @@ STRING is the output line from PROC.  Not used."
     (cd saved-directory)
     )
   )
+
+;; (defun 7zr-delete-file-if-exists  ( filename )
+;; )
+;; (defun 7zr-delete-file-from-temp-if-exists  ( filename )
+;;   )  ;; debug
 
 (defun 7zr-rename-file-if-exists ( file newname &optional overwritep)
   " Rename a file if it exists, and returns nil, taking no
@@ -3890,7 +4104,7 @@ overwritep option is ignored for now."
   (when (stringp direction)
     (if (string-match-p "R" direction)
 	(setq direction -1)
-      (setq diredction 1)
+      (setq direction 1)
       )
     )
   (if (= direction 1)
@@ -4016,8 +4230,7 @@ overwritep option is ignored for now."
 
 
 (defun 7zr-apply-patch-forward ( wip_buffer linenum_param )
-  "This is an elisp implementation of the unix patch -p0 command, which only works on diffs of unified format, created by the unix command diff -Na.  Returns the new calculated line number."
-
+  "This is an elisp implementation of the unix patch -p0 command, which only works on diffs of unified format, created by the unix command diff -Na.  Returns the new calculated line number.  When calling this function the current-buffer must be that of a patch/diff file."
   (let ((first-hunk-encountered-backward-that-changes-linenum-p t) (diff-buffer (current-buffer)) diff-string (linenum_offset 0) (hunknum 0) (hunknum-that-changed-linenum 0) last_match_pos current_match_pos)
     (set-buffer diff-buffer)
 
@@ -4371,8 +4584,8 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 	    (setq beginning_line (7zr-line-number-at-point))
 	    (goto-char (point-max))
 	    (when (eobp)
-	      (forward-line -1))
-	    (forward-line -2)
+	      (previous-line))
+	    (previous-line 2)
 	    (end-of-line)
 	    (setq end_line (7zr-line-number-at-point))
 
@@ -4502,12 +4715,11 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
   
 (defun 7zr-list-revs ( filename )
   "create a read-only buffer containing list of revisions, returning a 3 member list containing the original version filename as a string, the newly created buffer and the latest revision number as a number.  This function is only called from 7zr-line-last-changed-on, so possibly will be DEFUNCT"
-  (let (7zr-patch-number 7zr-original-version 7zr-buffer-without-extension 7zr-buffer-without-extension 7zr-list-revs_lastbuffer 7zr-list-revs_tmpbuffer 7zr-list-revs_tmpbuffer2 (ofile 7zr-archive-name)
-			 files file sum col timetuple savepoint reached-minuses patch highest-patch 7zdatetime 7zsize 7zname)
+  (let ( (tmp_patch_number 1.0) 7zr-buffer-without-extension 7zr-buffer-without-extension 7zr-list-revs_lastbuffer 7zr-list-revs_tmpbuffer 7zr-list-revs_tmpbuffer2 (ofile 7zr-archive-name)
+			 files file sum col timetuple savepoint reached-minuses patch highest-patch 7zdatetime 7zsize 7zname (lines 0))
     
     
     (setq 7zr-buffer-without-extension (7zr-sans-extension filename)) 
-    (setq 7zr-patch-number 1.0)
     (setq 7zr-list-revs_lastbuffer (current-buffer))
     (setq 7zr-list-revs_tmpbuffer (generate-new-buffer-name (concat "7zr-list-revs_of_" filename)))
     (get-buffer-create 7zr-list-revs_tmpbuffer)
@@ -4526,17 +4738,12 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
     (save-window-excursion
       (call-process "7z" nil t nil "l" ofile)
       (goto-char (point-min))
-      
-
       (beginning-of-line)
       (while (re-search-forward "^\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\) \\(.....\\) \\([ 0-9]+\\) \\([ 0-9]+\\)  \\(.*\\)" nil t)
 	(setq 7zdatetime (match-string-no-properties 1))
 	(setq 7zsize (match-string-no-properties 3))
 	(setq 7zname (match-string-no-properties 5))
 	(beginning-of-line)
-	
-
-	    
 	(if (and (7zr-string-starts-with-p 7zname 7zr-buffer-without-extension)  ; find original version
 		 (not (string= 7zname 7zr-archive-created-by-message))  ; not the archive identifier
 		 )
@@ -4567,11 +4774,12 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 	      (insert-tab)
 	      (insert 7zdatetime)
 	      (newline)
+	      (setq lines (1+ lines))
 		      
 	      (set-buffer 7zr-list-revs_with-temp-buffer)
 	      (setq patch (string-to-number 7zname))
-	      (when (> patch 7zr-patch-number)            ; if patch is higher it becomes highest
-		(setq 7zr-patch-number patch)	  
+	      (when (> patch tmp_patch_number)            ; if patch is higher it becomes highest
+		(setq tmp_patch_number patch)	  
 		)
 	      
 	      )
@@ -4611,15 +4819,16 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
     (when (> 7zr-patch-number 1)
       (7zr-summary-sort-1))
     (goto-char (point-min))
+    (setq 7zr-patch-number tmp_patch_number)
     (7zr-set-some-buffer-local-vars "7zr-list-revs" 7zr-list-revs_lastbuffer)
     (toggle-read-only 1)
     (set-buffer-modified-p nil)
     (kill-buffer 7zr-list-revs_with-temp-buffer)
     (end-of-buffer)
-    (forward-line -1)
+    (previous-line)
     (beginning-of-line)
     (set-buffer 7zr-list-revs_lastbuffer)
-    (list 7zr-original-version  7zr-list-revs_tmpbuffer 7zr-patch-number) ; returns a string and a buffer name as string, and a number
+    (list 7zr-original-version  7zr-list-revs_tmpbuffer 7zr-patch-number (+ lines 2)) ; returns a string and a buffer name as string, and a number and a number
     ) ;let  
   )               ; 7zr-list-revs
 
@@ -4680,7 +4889,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 			  ) ; progn
 		    ; else
 		      (setq linenum (car linenum_obj))
-		      (forward-line -1)
+		      (previous-line)
 		    ;;;  (7zr-delete-file-if-exists (concat 7zr-temp-directory current-patch ))
 		      ) ; if changed
 		 
@@ -4702,131 +4911,147 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
   )
 
 
-(defun 7zr-goto-rev-region-last-changed_get_initial_text ()
-
-  (goto-char (point-min))
-  (forward-line (1- 7zr-goto-rev-region-last-changed_linenum_begin))
-  (setq 7zr-goto-rev-region-last-changed_char_begin (point))
-  (forward-line 7zr-goto-rev-region-last-changed_lines)
-  (setq 7zr-goto-rev-region-last-changed_char_end (line-end-position))
-  (goto-char 7zr-goto-rev-region-last-changed_char_begin)
+(defun 7zr-goto-rev-region-last-changed_get_initial_text ( linenum_begin lines )
+  (let (char_begin char_end changed_txt)
+    (save-excursion
+      (goto-char (point-min))
+      (forward-line (1- linenum_begin))
+      (setq char_begin (point))
+      (forward-line lines)
+      (setq char_end (line-end-position))
+      (goto-char char_begin)
   
-  (setq 7zr-goto-rev-region-last-changed_txt (buffer-substring-no-properties 7zr-goto-rev-region-last-changed_char_begin 7zr-goto-rev-region-last-changed_char_end))
-  (message (concat "initial text: " 7zr-goto-rev-region-last-changed_txt))
-  
+      (setq changed_txt (buffer-substring-no-properties char_begin char_end))
+      (message (concat "initial text: " changed_txt))
+     changed_txt
+      )
+    )
   )
 
-(defun 7zr-goto-rev-region-last-changed_get_cmp_text()
-  
-  
+(defun 7zr-goto-rev-region-last-changed_get_cmp_text( lines )
+  (let (line_at_point linenum_begin linenum_end cmp saved-pos)
+    
  ;; (goto-char (point-min))
  ;; (forward-line (1- 7zr-goto-rev-region-last-changed_linenum_begin))
-  (setq 7zr-goto-rev-region-last-changed_buffer (current-buffer))
-  (setq 7zr-cln (7zr-line-number-at-point))
-  (setq 7zr-goto-rev-region-last-changed_linenum_begin 7zr-cln)
-  (setq 7zr-save-pos (point))
-  (save-excursion
-    (forward-line 7zr-goto-rev-region-last-changed_lines)
-    (setq 7zr-goto-rev-region-last-changed_linenum_end (7zr-line-number-at-point))
-    (setq 7zr-goto-rev-region-last-changed_cmp (buffer-substring-no-properties 7zr-save-pos (line-end-position)))
-    (message (concat "cmp text: " 7zr-goto-rev-region-last-changed_cmp))
+    ;(setq 7zr-goto-rev-region-last-changed_buffer (current-buffer))
+    (setq line_at_point (7zr-line-number-at-point))
+    (setq linenum_begin line_at_point)
+    (setq saved-pos (point))
+    (save-excursion
+
+      (forward-line lines)
+  ;;    (setq linenum_end (7zr-line-number-at-point))
+      (setq cmp (buffer-substring-no-properties saved-pos (line-end-position)))
+      (message (concat "cmp text: " cmp))
+      cmp
+      )
     )
   )
 
 (defun 7zr-goto-rev-region-last-changed ()
   "Jumps to the revision and line of where the lines in a selected region have  last been modified (not the line numbers, per se, but the content at the given line numbers, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account).  May take a considerable amount of time to complete.  If the current buffer is not in 7z-revisions mode, then it will execute 7z-revisions on that buffer before proceeding."
   (interactive)
-  (if (region-active-p)
-      (progn
-	(setq region_beginning (region-beginning))
-	(setq region_end (region-end))
-	(setq 7zr-goto-rev-region-last-changed_linenum_begin (7zr-line-number-at-pos region_beginning))
-	(setq 7zr-goto-rev-region-last-changed_linenum_end (7zr-line-number-at-pos region_end))
-	(setq 7zr-goto-rev-region-last-changed_lines (- 7zr-goto-rev-region-last-changed_linenum_end 7zr-goto-rev-region-last-changed_linenum_begin))
-	)
-    )
-  (setq 7zr-view_highlight_saved_state 7zr-view_highlightp)   
-  (setq 7zr-view_highlightp nil)
-  (message (buffer-name (current-buffer)))
+  (let (region_beginning region_end  linenum_end  7zr-goto-rev-region-last-changed_cmp 7zr-goto-rev-region-last-changed_txt 7zr-goto-rev-region-last-changed_no_change 7zr-lines_not_changed 7zr-continue_searching (7zr-view_highlight_saved_state 7zr-view_highlightp) tmppoint )
+    
+    (if (region-active-p)
+	(progn
+	  (setq tmppoint (point))
+	  (exchange-point-and-mark)
+	  (when (> (point) tmppoint)
+	    (exchange-point-and-mark))
+	  (setq region_beginning (region-beginning))
+	  (setq region_end (region-end))
+	  
+	  (setq 7zr-goto-rev-region-last-changed_linenum_begin (7zr-line-number-at-pos region_beginning))
+	  (setq linenum_end (7zr-line-number-at-pos region_end))
+	  (setq 7zr-goto-rev-region-last-changed_lines (- linenum_end 7zr-goto-rev-region-last-changed_linenum_begin))
+	  )
+      )
+    (setq 7zr-view_highlightp nil)
+ ;   (message (buffer-name (current-buffer)))
   ;; first making sure that point is in a 7zr-summary-view-revision (7zrv) mode buffer
-  (cond
-   ((and
-     (bound-and-true-p 7zr-window)
-     (string= 7zr-window "7zr-summary-view-revision")
+    (cond
+     
+     ((and
+       (bound-and-true-p 7zr-window)
+       (string= 7zr-window "7zr-summary-view-revision")
 ;     (7zr-string-starts-with-p (buffer-name (current-buffer)) "rev")
  ;    (setq 7zr-goto-rev-region-last-changed_of_pos (string-match-p (buffer-name (current-buffer)) "_of_"))
 					;    (setq 7zr-goto-rev-region-last-changed_original-version (substring (buffer-name (current-buffer)) 7zr-goto-rev-region-last-changed_of_pos -1))
-     )
-    (7zr-goto-rev-region-last-changed_get_initial_text)
+       )
+      (setq 7zr-goto-rev-region-last-changed_txt (7zr-goto-rev-region-last-changed_get_initial_text 7zr-goto-rev-region-last-changed_linenum_begin 7zr-goto-rev-region-last-changed_lines))
     ;(7zr-save-last-line-column)
     ;;(kill-buffer)
    ;; (switch-to-buffer 7zr-revisions_tmpbuffer)
 
-    )
+      )
 
    ;; 7zr-active-document_7zr-revisions_original_buffer
-   ;; if there is already a 7z-revisions-summary-view opened on this document, then go to that
-   ((buffer-live-p 7zr-buffer-misc)
-    (setq 7zr-buffer-misc_name (file-name-nondirectory (buffer-name (current-buffer))))  
-    (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name 7zr-buffer-misc_name ))
-    (7zr-goto-rev-region-last-changed_get_initial_text)
-
-    (switch-to-buffer 7zr-buffer-misc)
-    (goto-char (point-max))
-    (previous-line)
-    (7zr-summary-view-revision)
-    )
-
-   (t
-    (setq 7zr-buffer-misc_name (file-name-nondirectory (buffer-name (current-buffer))))  
-    (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name 7zr-buffer-misc_name ))
-    (7zr-goto-rev-region-last-changed_get_initial_text)
- 
-    (7z-revisions)
-    (goto-char (point-max))
-    (previous-line)
-    (7zr-summary-view-revision)
-    )
-   )
-  (setq 7zr-goto-rev-region-last-changed_no_change nil)
-  (save-window-excursion
-	    
-    (setq 7zr-lines_not_changed t)
-    (setq 7zr-continue_searching t)
-    (message "This might take a while...")
-    (while 7zr-continue_searching
-      (7zr-goto-rev-region-last-changed_get_cmp_text)
-      (if (not (string= 7zr-goto-rev-region-last-changed_cmp 7zr-goto-rev-region-last-changed_txt))
-	  (progn 
-	    
-	    (setq 7zr-lines_not_changed nil)
-	    (setq 7zr-continue_searching nil)
-	    (when (bound-and-true-p 7zr-current-rev)
-	      (setq 7zr-continue_searching nil)
-	      (message (concat "lines change on rev " 7zr-current-rev))
-	      )
-	    (when (bound-and-true-p 7zr-original-page)
-	 
-	      (message "lines changed on original version 0 archived document.")
-	      )
-	    (recenter-top-bottom)  
-	    )
-					; else	
-	(when (bound-and-true-p 7zr-original-page)
-	  (setq 7zr-continue_searching nil)
-	  (message "No changes in region.")
-	  (setq 7zr-goto-rev-region-last-changed_no_change t) 
-	  (7zr-view-quit)
-	  (7zr-summary-quit)
-	  )
-	)
+   ;; if we arent viewing a revision but there is already a 7z-revisions-summary-view opened somewhere on this document, then go to that
+     ((and 7zr-buffer-misc
+	   (buffer-live-p (get-buffer 7zr-buffer-misc)))
+      (setq 7zr-buffer-misc_name (file-name-nondirectory (buffer-name (current-buffer))))  
+      (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name 7zr-buffer-misc_name ))
+      (setq 7zr-goto-rev-region-last-changed_txt (7zr-goto-rev-region-last-changed_get_initial_text 7zr-goto-rev-region-last-changed_linenum_begin 7zr-goto-rev-region-last-changed_lines))
       
-      (when 7zr-continue_searching
-	(7zr-view_previous_page))
-      )  ; while
-    (setq 7zr-view_highlight_saved_state 7zr-view_highlightp)  
-    )  ; save window excursion
-  
+      (switch-to-buffer 7zr-buffer-misc)
+      (goto-char (point-max))
+      (previous-line)
+      (7zr-summary-view-revision)
+      )
+     
+;;;;;;  else start a new 7z-revision 
+     (t
+      (setq 7zr-buffer-misc_name (file-name-nondirectory (buffer-name (current-buffer))))  
+      (setq 7zr-buffer-misc (concat 7zr-revisions_tmpbuffer-default_prefix_name 7zr-buffer-misc_name ))
+      (setq 7zr-goto-rev-region-last-changed_txt (7zr-goto-rev-region-last-changed_get_initial_text 7zr-goto-rev-region-last-changed_linenum_begin 7zr-goto-rev-region-last-changed_lines))
+      (7z-revisions)
+      (goto-char (point-max))
+      (previous-line)
+      (7zr-summary-view-revision)
+      )
+     )
+    (setq 7zr-goto-rev-region-last-changed_no_change nil)
+    (save-window-excursion
+
+      (setq 7zr-lines_not_changed t)
+      (setq 7zr-continue_searching t)
+      (message "This might take a while...")
+      (while 7zr-continue_searching
+	(setq 7zr-goto-rev-region-last-changed_cmp (7zr-goto-rev-region-last-changed_get_cmp_text 7zr-goto-rev-region-last-changed_lines))
+
+	(if (not (string= 7zr-goto-rev-region-last-changed_cmp 7zr-goto-rev-region-last-changed_txt))
+	    (progn 
+	      
+	      (setq 7zr-lines_not_changed nil)
+	      (setq 7zr-continue_searching nil)
+	      (when (bound-and-true-p 7zr-current-rev)
+		(setq 7zr-continue_searching nil)
+		(message (concat "lines change on rev " 7zr-current-rev))
+		(setq 7zr-goto-rev-region-last-changed_linenum_begin (7zr-line-number-at-point))
+		)
+	      (when (bound-and-true-p 7zr-original-page)
+	 
+		(message "lines changed on original version 0 archived document.")
+		)
+	      (recenter-top-bottom)  
+	      )
+					; else	
+	  (when (bound-and-true-p 7zr-original-page)
+	    (setq 7zr-continue_searching nil)
+	    (message "No changes in region.")
+	    (setq 7zr-goto-rev-region-last-changed_no_change t) 
+	    (7zr-view-quit)
+	    (7zr-summary-quit)
+	    )
+	  )
+      
+    (when 7zr-continue_searching
+	  (7zr-view_previous_page))
+	)  ; while
+      (setq 7zr-view_highlightp 7zr-view_highlight_saved_state )  
+      )  ; save window excursion
+    )
   )
 
 (defun 7zr-reconstruct_refresh-some-pointers (rev linenum)
@@ -4972,7 +5197,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 	       ; start at bottom of buffer and walk upwards
 		(goto-char (point-max))
 		(beginning-of-line)
-		(forward-line -1) ; the latest revision is actually just another name for the last rev number
+		(previous-line) ; the latest revision is actually just another name for the last rev number
 		(beginning-of-line)
 		(looking-at "\\([0-9]+\\.[0-9]*\\)")
 		(setq 7zr-pointer-lastviewed (match-string-no-properties 1))
@@ -5139,7 +5364,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 		  (beginning-of-line)
 		  (setq 7zr-pointer-lastviewed_nearest_progeny rev_iter_string_last)
 		  (save-excursion
-		    (forward-line -1)
+		    (previous-line)
 		    (beginning-of-line)
 		    (if (looking-at 7zr-original-version)
 			(setq 7zr-pointer-lastviewed_string_nearest_ancestor 7zr-original-version)
@@ -5168,7 +5393,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 		      (if (looking-at 7zr-latest-revision)
 			  (setq 7zr-pointer-lastviewed_nearest_progeny 7zr-latest-revision)
 			; else
-			  (when (looking-at "\\([0-9]+\\.[0-9]*\\)") 
+			  (when (looking-at "\\([0-9]+\\.[0-9]+\\)") 
 			  (setq 7zr-pointer-lastviewed_nearest_progeny (match-string-no-properties 1)))
 			)
 		      )
@@ -5262,7 +5487,10 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 ;  (pp rev)
 ;  (pp 7zr-summary-last-line)
   (setq 7zr-summary-linenum-at-point (7zr-line-number-at-point))
-  
+  (when (looking-at "\\([0-9]+\\.[0-9]+\\)")
+    (when (not (string= rev (match-string-no-properties 1)))
+      (error "rev isnt revision"))
+    (setq rev (match-string-no-properties 1)))
   (setq 7zr-rev rev)
   ;; (when (and
   ;; 	 (= 7zr-summary-last-line 1)
@@ -5316,8 +5544,8 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 	      (progn
 		(setq 7zr-valid-rev-in-tempp t)
 		(setq 7zr-pointer-lastviewed_last 7zr-pointer-lastviewed)
-		(rename-file (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
-
+;;		(rename-file (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
+		(7zr-rename-file-from-temp-if-exists (concat  "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version) 7zr-prepend-to-reconstruct_wip)
 		
 		(cond
 		 
@@ -5385,13 +5613,14 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 		    (setq 7zr-reconstruct-dtag " -t ")
 		    (setq shell-msg (shell-command-to-string (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name)) " " (7zr-shell-quote-argument 7zr-original-version))))
 		    
-		    (rename-file (concat 7zr-temp-directory 7zr-original-version) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
+;;		    (rename-file (concat 7zr-temp-directory 7zr-original-version) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
+		    (7zr-rename-file-from-temp-if-exists 7zr-original-version 7zr-prepend-to-reconstruct_wip)
 		    )
 					; else
 	       ; start at bottom of buffer and walk upwards
 		(goto-char (point-max))
 		(beginning-of-line)
-		(forward-line -1)   ; the latest revision is actually just another name for the last rev number
+		(previous-line)   ; the latest revision is actually just another name for the last rev number
 		(beginning-of-line)
 		(looking-at "\\([0-9]+\\.[0-9]*\\)")
 		(setq 7zr-pointer-lastviewed (match-string-no-properties 1))
@@ -5405,7 +5634,8 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 		(setq 7zr-reconstruct-direction -1)
 		(setq 7zr-reconstruct-dtag " -R -t ")
 		(setq shell-msg (shell-command-to-string (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name)) " " (7zr-shell-quote-argument (concat 7zr-prepend-to-latest-revision  7zr-original-version)))))
-		(rename-file (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
+		(7zr-rename-file-from-temp-if-exists (concat 7zr-prepend-to-latest-revision 7zr-original-version) 7zr-prepend-to-reconstruct_wip) 
+;		(rename-file (concat 7zr-temp-directory 7zr-prepend-to-latest-revision 7zr-original-version) (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) t)
 		) ; if line number is upper half vs lower half
 	      ) ; progn
     ; else  we are using a previous rev thats still in the temp directory and already set up
@@ -5494,8 +5724,10 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 			(7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip ".rej"))
 			(7zr-delete-file-if-exists (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip ".orig"))
 			)	  
-		    (7zr-rename-file-if-exists  (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip ".rej") (concat 7zr-temp-directory 7zr-prepend-to-rej rev "_of_" 7zr-original-version ".rej"))
-		    (7zr-rename-file-if-exists  (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip ".orig")  (concat 7zr-temp-directory 7zr-prepend-to-rej rev "_of_" 7zr-original-version ".orig"))
+		   ;; (7zr-rename-file-if-exists  (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip ".rej") (concat 7zr-temp-directory 7zr-prepend-to-rej rev "_of_" 7zr-original-version ".rej"))
+ 		    (7zr-rename-file-from-temp-if-exists (concat  7zr-prepend-to-reconstruct_wip ".rej") (concat  7zr-prepend-to-rej rev "_of_" 7zr-original-version ".rej")) 
+		   ;; (7zr-rename-file-if-exists  (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip ".orig")  (concat 7zr-temp-directory 7zr-prepend-to-rej rev "_of_" 7zr-original-version ".orig"))
+ 		    (7zr-rename-file-from-temp-if-exists (concat 7zr-prepend-to-reconstruct_wip ".orig")  (concat 7zr-prepend-to-rej rev "_of_" 7zr-original-version ".orig"))
 		    )
 	      )
       
@@ -5506,7 +5738,7 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 		  (beginning-of-line)
 		  (setq 7zr-pointer-lastviewed_nearest_progeny rev_iter_string_last)
 		  (save-excursion
-		    (forward-line -1)
+		    (previous-line)
 		    (beginning-of-line)
 		    (if (looking-at 7zr-original-version)
 			(setq 7zr-pointer-lastviewed_string_nearest_ancestor 7zr-original-version)
@@ -5563,12 +5795,15 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 	      )
 	  )
 
-	(rename-file (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version) t) 
+;;	(rename-file (concat 7zr-temp-directory 7zr-prepend-to-reconstruct_wip) (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version) t)
+	(7zr-rename-file-from-temp-if-exists (concat 7zr-prepend-to-reconstruct_wip) (concat "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
+	
 	(when 7zr-track-md5sum-hashes-p
        ;	    (with-current-buffer 7zr-active-document_buffer
 	  (setq 7zr-reconstruct-rev_hash (gethash 7zr-pointer-lastviewed 7zr-hasht))
 ;	      )	    
-	  (setq 7zr-file-rev_hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_"  7zr-original-version)) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))
+	  (setq 7zr-file-rev_hash (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_"  7zr-original-version)) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))    ;; comment out 
+;;	  (setq 7zr-file-rev_hash (7zr-sha1-of-file-in-temp-directory (concat "rev" 7zr-pointer-lastviewed "_of_"  7zr-original-version)))  ;; comment out for speed 
 	  (if (not (string= 7zr-file-rev_hash 7zr-reconstruct-rev_hash))
 	      (error "revision hash doesnt match!"))
 	  ) ; when tracking md5sums, or sha1sums as the case may be
@@ -5583,6 +5818,9 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
     (setq saved_directory default-directory)
     (find-file-read-only (concat 7zr-temp-directory "rev" 7zr-pointer-lastviewed "_of_" 7zr-original-version))
     (7z-revisions-mode 0)
+    
+    (when (bound-and-true-p undo-tree-mode)
+      (undo-tree-mode 0))
     (cd saved_directory)
     
     (set (make-local-variable '7zr-active-document) 7zr-buffer)
@@ -5599,7 +5837,6 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
     (message (concat "Revised on " 7zr-view_date " " (gethash 7zr-summary-rev-at-point (buffer-local-value '7zr-notestab 7zr-active-document_last-buffer))))
     )
   )
-
 
  
 (defun 7zr-summary-reconst-last-del ()
@@ -5627,46 +5864,46 @@ and does the same thing as 7zr-reconstruct-rev-from-patches, but slower, hence t
 
 
 
-(defvar 7zr-match-diff3-line "^====\\(.?\\)\C-m?$"
-  "Pattern to match lines produced by diff3 that describe differences.")
+(setq 7zr-match-diff3-line "^====\\(.?\\)\C-m?$")
+;;  "Pattern to match lines produced by diff3 that describe differences.")
 
-(defvar 7zr-match-diff-line
+(setq 7zr-match-diff-line
   (let ((x "\\([0-9]+\\)\\(\\|,\\([0-9]+\\)\\)"))
-    (concat "^" x "\\([acd]\\)" x "\C-m?$"))
-  "Pattern to match lines produced by diff that describe differences.")
+    (concat "^" x "\\([acd]\\)" x "\C-m?$")))
+;;  "Pattern to match lines produced by diff that describe differences.")
 
-(defvar 7zr-match-diff-line2
+(setq 7zr-match-diff-line2
   (let ((x "\\([0-9]+\\)\\(\\|,\\([0-9]+\\)\\)"))
-    (concat "^" x "\\([acd]\\)" x "\C-m?$"))
-  "Pattern to match lines produced by diff that describe differences.")
+    (concat "^" x "\\([acd]\\)" x "\C-m?$")))
+;;  "Pattern to match lines produced by diff that describe differences.")
 
-(defvar 7zr-match-diff-standard-line
+(setq 7zr-match-diff-standard-line
   (let ((x "\\([0-9]+\\)\\(\\|,\\([0-9]+\\)\\)"))
-    (concat "^" x "\\([acd]\\)" x "\C-m?$"))
-  "Pattern to match lines produced by diff that describe differences.")
+    (concat "^" x "\\([acd]\\)" x "\C-m?$")))
+;;  "Pattern to match lines produced by diff that describe differences.")
 
-(defvar 7zr-match-diff-standard-hunk
+(setq 7zr-match-diff-standard-hunk
   (let ((x "\\([0-9]+\\)\\(\\|,\\([0-9]+\\)\\)")
         (a "< \\(.*\\)")
 	(b "> \\(.*\\)"))
     (concat "^" x "\\([acd]\\)" x "\C-j\\(< .*\C-j\\)*\\(---\\)?\C-j?\\(> .*\C-j\\)*" )
-    )
-  "matches all diff-types crudely from a standard diff.")
+    ))
+;;  "matches all diff-types crudely from a standard diff.")
 
-(defvar 7zr-match-sha1-hashtable-entry
-  "(puthash \"\\([0-9]+\\.[0-9]+\\)\" \"\\([a-f0-9]+\\)\" 7zr-hasht)"
-  "matches each line in the hashtable file that contains sha1 hashfiles of revisions"
-)
+(setq 7zr-match-sha1-hashtable-entry
+  "(puthash \"\\([0-9]+\\.[0-9]+\\)\" \"\\([a-f0-9]+\\)\" 7zr-hasht)")
+;  "matches each line in the hashtable file that contains sha1 hashfiles of revisions"
+;;)
 
-(defvar 7zr-match-notes-hashtable-entry
-  "(puthash \"\\([0-9]+\\.[0-9]+\\)\" \"\\(.*\\)\" 7zr-notestab)"
-  "matches each line in the hashtable file that contains notes on revisions"
-)
+(setq 7zr-match-notes-hashtable-entry
+  "(puthash \"\\([0-9]+\\.[0-9]+\\)\" \"\\(.*\\)\" 7zr-notestab)")
+;  "matches each line in the hashtable file that contains notes on revisions"
+;)
 
-(defvar 7zr-match-notes-hashtable-entry_color
-  "(puthash \"c\\([0-9]+\\.[0-9]+\\)\" \"\\([0-7]\\)\" 7zr-notestab)"
-  "matches each line in the hashtable file that contains notes on revisions"
-)
+(setq 7zr-match-notes-hashtable-entry_color
+  "(puthash \"c\\([0-9]+\\.[0-9]+\\)\" \"\\([0-7]\\)\" 7zr-notestab)")
+;  "matches each line in the hashtable file that contains notes on revisions"
+;)
 
 (defun 7zr-view-highlight-changes ( ancestorp progenyp )
   "Highlights changes in 7zr-view and enables the d key to jump
@@ -5804,10 +6041,10 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
 (defun 7zr-what-is-relative-directory ( rel cur-full )
   (if (string= rel "")
       cur-full
-    (let ( retval (saved_dir (substring (pwd) 10 )))
+    (let ( retval (saved_dir default-directory))
       (cd cur-full)
       (cd rel)
-      (setq retval (substring (pwd) 10 ))
+      (setq retval default-directory)
       (cd saved_dir)
       retval
       )
@@ -6909,7 +7146,7 @@ Tries to be version control aware."
 
 
 (defun 7zr-add-to-hashfile ( string_to_add )
-  "So far this function is not being called by anything."
+  "This function is not being called by anything"
   (save-window-excursion
     (shell-command (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name)) " " (7zr-shell-quote-argument (concat 7zr-prepend-to-hash-file  7zr-original-version))))
 
@@ -6918,6 +7155,7 @@ Tries to be version control aware."
     (shell-command (concat "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on " (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name)) " " (7zr-shell-quote-argument (concat 7zr-temp-directory 7zr-prepend-to-hash-file  7zr-original-version))))
     )
   )
+
 
 
 (defun 7zr-create-diff-against-latest-version ()
@@ -7087,6 +7325,56 @@ Tries to be version control aware."
     )
   )
 
+(defun 7zr-forward-patch-in-temp-directory ( file patch)
+  "This program is called from 7zr-regenerate-all-hashes-from-diffs and leads to the calling of 7zr-apply-patch on MSwindows or 7zr-forward-patch-in-temp-directory_LINUX for linux, which perform the basic function of the linux patch command on unfied formatted diffs, in forward direction only."
+  (if (or 
+       (bound-and-true-p 7zr-active-document_buffer_is_msdos_p) 
+       7zr-os_is_windows_p 
+       ) 
+      (7zr-forward-patch-in-temp-directory_WINDOWS file patch)
+					; else
+   ;; (7zr-forward-patch-in-temp-directory_WINDOWS file patch)
+    (7zr-forward-patch-in-temp-directory_LINUX file patch)
+    )
+  )
+
+(defun 7zr-forward-patch-in-temp-directory_WINDOWS ( file patch)
+  (let ((saved_buffer (current-buffer)) (saved_dir default-directory) hashvalue file_buffer diff_buffer hash)
+    (cd 7zr-temp-directory)
+    (setq file_buffer (find-file file))
+    (7z-revisions-mode 0)
+    (when (bound-and-true-p undo-tree-mode)
+      (undo-tree-mode 0)) 
+    (setq diff_buffer (find-file patch))
+    (set-buffer diff_buffer)
+    (7z-revisions-mode 0)
+    (when (bound-and-true-p undo-tree-mode)
+      (undo-tree-mode 0)) 
+    (7zr-apply-patch file 0 1)
+    (set-buffer diff_buffer)
+    (set-buffer-modified-p nil)
+    (set-buffer file_buffer)
+    (kill-buffer diff_buffer)
+    (set-buffer file_buffer)
+    (setq hash (sha1 file_buffer))
+    (save-buffer file_buffer)
+    (kill-buffer file_buffer)
+    (cd saved_dir)
+    (set-buffer saved_buffer)
+    hash
+    )
+  )
+
+    
+(defun 7zr-forward-patch-in-temp-directory_LINUX ( file patch)
+  (let ((saved-dir default-directory) hashvalue)
+    (cd 7zr-temp-directory)
+    (shell-command (concat 7zr-patch-command " " (7zr-shell-quote-argument file) " -i " (7zr-shell-quote-argument patch)))
+    (setq hashvalue (7zr-string-trim-final-newline (7zr-string-trim-final-newline (shell-command-to-string (concat 7zr-sha1sum-command " " (7zr-shell-quote-argument file) 7zr-sha1sum-post-command (7zr-awk-cmd-string 1))))))    ;; comment out 
+;;	  (setq hashvalue (7zr-sha1-of-file-in-temp-directory file ))  ;; comment out for speed 
+    hashvalue
+    )
+  )
 
 (defun 7zr-select-tag-to-insert-into-document ()
   "If the current buffer is the archive created by message buffer, as invoked from (7zr-archive-edit-metadata-file), then use one set of tags, otherwise use another"
@@ -7226,8 +7514,7 @@ Tries to be version control aware."
     )
   )
 
-(defun 7zr-archive-save-metadata-file ()
-  (interactive)
+(defun 7zr-archive-save-metadata-file ( &optional cancel)
    ; if current-buffer is not the archive-created-by-message file then do nothing, and error
   (let ( (archive-directory 7zr-metafile_archive-directory) (archive-name 7zr-metafile_archive-name) (archive-prefix 7zr-metafile_archive-prefix) (filename_sans_directory 7zr-metafile_filename))
 
@@ -7246,9 +7533,13 @@ Tries to be version control aware."
 					; else
       (unless (string= 7zr-metafile_archive-name "")
 	(save-window-excursion
-	  (save-buffer)       
-	  (kill-buffer) ;; we apparently need to kill the buffer to flush the file system before adding to archive
-	  (shell-command (concat "7z a " (7zr-shell-quote-argument (concat archive-directory  archive-prefix archive-name)) " " (7zr-shell-quote-argument (concat 7zr-temp-directory   filename_sans_directory))))   ; wait a second, isn't archive-prefix normally included in archive-name automatically?
+	  (if (bound-and-true-p cancel)
+	      (kill-buffer)
+					; else
+	    (save-buffer)       
+	    (kill-buffer) ;; we apparently need to kill the buffer to flush the file system before adding to archive
+	    (shell-command (concat "7z a " (7zr-shell-quote-argument (concat archive-directory  archive-prefix archive-name)) " " (7zr-shell-quote-argument (concat 7zr-temp-directory   filename_sans_directory))))   ; wait a second, isn't archive-prefix normally included in archive-name automatically?
+	    )
 	  )
 	)
       )      
@@ -7258,6 +7549,11 @@ Tries to be version control aware."
 (defun 7zr-metafile-exit ()
   (interactive)
   (7zr-archive-save-metadata-file)
+  )
+
+(defun 7zr-metafile-cancel ()
+  (interactive)
+  (7zr-archive-save-metadata-file t)
   )
 
 
@@ -7357,49 +7653,91 @@ Tries to be version control aware."
   
 
 (defun 7zr-populate-initial-global-vars ()
-
-  (setq 7zr-buffer_file_coding_system buffer-file-coding-system)
-  (setq 7zr-buffer_is_msdos_p (string-match-p "dos" (symbol-name buffer-file-coding-system)))
-  
-  (setq 7zr-buffer-filename_including_dir (buffer-file-name (current-buffer)))
-  (when (not 7zr-buffer-filename_including_dir)
-	(error "Buffer must be associated with a file.")
-	)
-  (setq 7zr-buffer (file-name-nondirectory 7zr-buffer-filename_including_dir))
-  (setq 7zr-buffer-filename (buffer-file-name (current-buffer))) ; includes path
+  (let (tag_in_text)
+    (setq 7zr-buffer-file-coding-system buffer-file-coding-system)
+    (setq 7zr-buffer_is_msdos_p (string-match-p "dos" (symbol-name buffer-file-coding-system)))
+    
+    (setq 7zr-buffer-filename_including_dir (buffer-file-name (current-buffer)))
+    (when (not 7zr-buffer-filename_including_dir)
+      (error "Buffer must be associated with a file.")
+      )
+    (setq 7zr-buffer (file-name-nondirectory 7zr-buffer-filename_including_dir))
+    (setq 7zr-buffer-filename (buffer-file-name (current-buffer))) ; includes path
 ;  (setq 7zr-active-document_buffer (current-buffer))
   
-  (setq 7zr-revisions_original_buffer (current-buffer))
+    (setq 7zr-revisions_original_buffer (current-buffer))
 ;  (setq 7zr-active-document (buffer-name 7zr-active-document_buffer))
 ;  (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))  ;debug 
 
-  (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer)) 
-
+    (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer)) 
+    
     ;debug
-  (if (or (string= 7zr-archive-directory_default "") (string= 7zr-archive-directory_default "."))
-      (setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
-    (7zr-set-archive-directory 7zr-archive-directory_default)
-    )    
+    (if (or (string= 7zr-archive-directory_default "") (string= 7zr-archive-directory_default "."))
+	(setq 7zr-archive-directory (file-name-directory (buffer-file-name (current-buffer))))
+      (7zr-set-archive-directory 7zr-archive-directory_default)
+      )    
+    
+    (7zr-set-archive-directory-full 7zr-archive-directory)
 
-  (7zr-set-archive-directory-full 7zr-archive-directory)
 
 
-
-  (setq 7zr-temp-string-variable (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_directory-of-archive))
-  (when (not (string= "" 7zr-temp-string-variable))
-    (7zr-set-archive-directory 7zr-temp-string-variable)
+    (setq tag_in_text (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_directory-of-archive))
+    (when (not (string= "" tag_in_text))
+      (7zr-set-archive-directory tag_in_text)
       )
-  (when (string= "" (setq 7zr-archive-prefix (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_archive-prefix)))
-    (setq 7zr-archive-prefix 7zr-archive-prefix_default)
+    (when (string= "" (setq 7zr-archive-prefix (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_archive-prefix)))
+      (setq 7zr-archive-prefix 7zr-archive-prefix_default)
+      )
+    (when (string= "" (setq 7zr-archive-extension (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_archive-extension)))
+      (setq 7zr-archive-extension 7zr-archive-extension_default)
+      )
+    (setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
+    (setq 7zr-archive-name (concat 7zr-archive-prefix 7zr-buffer 7zr-archive-extension))
+    (setq 7zr-document-directory (file-name-directory (buffer-file-name (current-buffer))))
+    (setq 7zr-buffer_file_coding_system (symbol-name buffer-file-coding-system))
     )
-  (when (string= "" (setq 7zr-archive-extension (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_archive-extension)))
-    (setq 7zr-archive-extension 7zr-archive-extension_default)
-    )
-  (setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
-  (setq 7zr-archive-name (concat 7zr-archive-prefix 7zr-buffer 7zr-archive-extension))
-  (setq 7zr-document-directory (file-name-directory (buffer-file-name (current-buffer))))
-  (setq 7zr-buffer-file-coding-system (symbol-name buffer-file-coding-system))
   )
+
+
+(defun 7zr-populate-initial-global-vars_dired ()
+  (let (tag_in_text)
+    ;; extract dired-get-file-for-visit
+    (setq 7zr-buffer_file_coding_system (symbol-name buffer-file-coding-system))
+    (setq 7zr-buffer_is_msdos_p (string-match-p "dos" (symbol-name buffer-file-coding-system)))
+    
+    (when (not 7zr-buffer-filename_including_dir)
+      (error "Buffer must be associated with a file.")
+      )
+    (setq 7zr-buffer (file-name-nondirectory 7zr-buffer-filename_including_dir))
+  
+
+    (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer)) 
+    
+    (set (make-local-variable '7zr-active-document_7zr-revisions_original_buffer) (current-buffer))
+    (7zr-set-archive-directory-full 7zr-archive-directory)
+
+
+
+    (setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
+    (setq 7zr-buffer-file-coding-system (symbol-name buffer-file-coding-system))
+    )
+  
+   ; (setq tag_in_text (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_directory-of-archive))
+;    (when (not (string= "" tag_in_text))
+ ;     (7zr-set-archive-directory tag_in_text)
+  ;    )
+    (when (string= "" (setq 7zr-archive-prefix (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_archive-prefix)))
+      (setq 7zr-archive-prefix 7zr-archive-prefix_default)
+      )
+    (when (string= "" (setq 7zr-archive-extension (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_archive-extension)))
+      (setq 7zr-archive-extension 7zr-archive-extension_default)
+      )
+    (setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
+  ;  (setq 7zr-archive-name (concat 7zr-archive-prefix 7zr-buffer 7zr-archive-extension))
+ ;   (setq 7zr-document-directory (file-name-directory (buffer-file-name (current-buffer))))
+    (setq 7zr-buffer_file_coding_system (symbol-name buffer-file-coding-system))
+  )
+
 
 ;; 7ZR-CLEAR-ALL-VARIABLES BEGINS
 
@@ -7571,7 +7909,7 @@ is invoked."
 			  (looking-at bkmrk_ptr_front-context)
 			  (looking-back bkmrk_ptr_rear-context))
 			 (progn
-			   (message (concat "Bookmark position in .7z archive for " bkmrk_ptr_name " -> found it!"))
+			   (message (concat "Bookmark position in " 7zr-archive-extension " archive for " bkmrk_ptr_name " -> found it!"))
 			   (setq continue_looking nil)
 			   (setq bkmrk_ptr_pos_found (point))
 			   (setq bkmrk_ptr_linenum_found (line-number-at-pos))
@@ -7581,7 +7919,7 @@ is invoked."
 					; else we haven't found it and we're already on the last page, well actually first
 		       (if (bound-and-true-p 7zr-original-page)
 			   (progn
-			     (message (concat "Bookmark " bkmrk_ptr_name " not found in its .7z archive!"))
+			     (message (concat "Bookmark " bkmrk_ptr_name " not found in its " 7zr-archive-extension " archive!"))
 			     (setq continue_looking nil)
 			     (7zr-view-quit)
 			     (7zr-summary-quit)
