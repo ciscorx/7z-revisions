@@ -8,18 +8,18 @@ Compatible with windows and linux, and probably mac.
  Wouldnt it be nice to be able to go back and double check to see
  exactly what you saved, when you saved it, in addition to perhaps
  what you may have accidentally deleted?  7z-revisions is now
- available, an indispensable #emacs #orgmode companion that does
- exactly that.  When in 7z-revisions-mode, the diff of the current
- buffer with respect to the last time it was saved, is saved to a
- 7-zip archive of the same name, whenever a save-buffer command is
- issued, incrementally saving the latest revision by adding a new
- patch to the archive.  Optionally, the .7z extension can be altered
- to something else, such as .8z for example, by setting the global
- variable 7zr-archive-extension to ".8z".  Additionally, the function
+ available, an indispensable emacs org-mode companion that does
+ exactly that.  With the 7z-revisions-mode, the current buffer is
+ saved to a 7-zip archive of the same name, whenever a save-buffer
+ command is issued, incrementally saving the latest revision by adding
+ a new patch to the archive, representing a diff between revisions.
+ And, optionally, the .7z extension can be altered to something else,
+ such as .8z for example, by setting the global variable
+ 7zr-archive-extension_default to ".8z".  Additionally, the function
  7z-revisions can be called interactively to view or consolidate past
  revisions in the archive, providing word by word differential
  highlighting.  In addition, syntax coloring is applied when viewing
- raw diff files.<br/>
+ the diff files.<br/>
 
  If your document anywhere contains a specific tag in the text, such
  as 7z-revisions.el_rev= followed by nothing or any number, then upon
@@ -46,16 +46,19 @@ Compatible with windows and linux, and probably mac.
 ### Some useful commands when editing your document:<br/>
 **M-x** **7zr-line-last-changed-on** = displays the date-time and revision number of last time that the line at point has been modified (not the line number per se but the content at the given line number, which may have occupied a different line number in prior revisions because of lines deleted and/or removed above it, which is taken into account)<br/>
 **M-x** **7zr-goto-line-of-last-revision** = jump to the line that was last changed in the current document, or more precisely, the line associated with the first hunk of the last changes<br/>
+**M-x** **7zr-goto-rev-region-last-changed** = View the revision of where the lines in a selected region have last been modified<br/>
 **M-x** **7zr-input-archive-directory**<br/>
 **M-x** **7zr-archive-edit-metadata-file**<br/>
 **M-x** **7zr-archive-save-metadata-file**<br/>
 **M-x** **7zr-select-tag-to-insert-into-document**<br/> 
 **M-x** **7zr-update-7z-revisions-tag-in-text** = insert current revision number +1 at the end of a revision number tag, and other info after their respective tags.<br/>
 **M-x** **7zr-create-file-for-archive-created-by-message** = put a metadata file into the archive, used for associating archive with 7z-revisions.el<br/>
-**M-x** **7zr-revision-note-annotation**<br/>
+**M-x** **7zr-revision-note-annotation** = enter a note to be associated with next revision save, or viewing the revisions summary list, edit the note of the line at point.<br/>
 **M-x** **7zr-modify-raw-hash-file**<br/>
 **M-x** **7zr-modify-raw-notes-file**<br/>
 **M-x** **7zr-rename-document-and-its-archive**<br/>
+**M-x** **7zr-regenerate-all-hashes-from-diffs**<br/>
+**M-x** **7zr-refresh-all-bookmarks = go through all the bookmarks in bookmark-default-file and if they have 7z-revisions archives associated with them then update their respective bookmark positions to reflect their current positions, in light of any lines that may have been added before them after the bookmarks had been created.<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions<br/>
      
@@ -70,6 +73,7 @@ Compatible with windows and linux, and probably mac.
  F2 c = enter a revision note,<br/>
  F2 CTRL-c = view/edit raw notes file,<br/>
  F2 CTRL-r = rename document & archive,<br/>
+ F2 CTRL-F2 = regenerate all sha1 hashes using all the diff files,<br/>
  F2 CTRL-f = edit metafile (created-by-message file),<br/>
  F2 CTRL-d = input (set) default archive directory,<br/>
  F2 ` = exit 7z-revisions-mode.<br/>
@@ -87,15 +91,16 @@ Compatible with windows and linux, and probably mac.
  u = view the diff file at point,<br/>
  a = view all selected diff files in one buffer,<br/>
  \# = prompt input of sha1 checksum and search for it<br/>
- c = edit revision note
+ c = edit revision note<br/>
 
 ### While viewing individual past revisions:<br/>
- q = quit to 7z-revisions buffer,<br/>
- n = next revision,<br/>
- p = previous revision,<br/>
+ q = quit to 7z-revisions buffer (also C-c q),<br/>
+ n = next revision (also C-c n),<br/>
+ p = previous revision (also C-c p),<br/>
  w = display day of the week of revision timestamp,<br/>
  u = view the diff file,<br/>
- g = Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions.<br/>
+ F2 C-F2 = View the revision of where the lines in the active region have last been modified<br/>
+ g = Quit 7z-revisions and then try to goto the line in your document corresponding to the last line viewed from 7z-revisions (Also C-c g).<br/>
  
 
 ### When highlight changes is enabled in view mode:<br/>
@@ -103,14 +108,14 @@ Compatible with windows and linux, and probably mac.
  e = jump to previous change
 
 ### While viewing a diff file:<br/>
- q = quit to 7z-revisions buffer,<br/>
- n = next diff file,<br/>
- p = previous diff file,<br/>
+ q = quit to 7z-revisions buffer (also C-c q),<br/>
+ n = next diff file (also C-c n),<br/>
+ p = previous diff file (also C-c p),<br/>
  w = display day of the week of diff files timestamp,<br/>
  r = switch to revision view,<br/>
- d = jump to next change hunk,<br/>
- e = jump to previous change hunk, <br/>
- g = Quit 7z-revisions and then try to goto the line in your document corresponding to the change hunk that was at point.<br/>
+ d = jump to next change hunk (also C-c d),<br/>
+ e = jump to previous change hunk (also C-c e), <br/>
+ g = Quit 7z-revisions and then try to goto the line in your document corresponding to the change hunk that was at point (also C-c g).<br/>
  
 
  There are also some functions in the menu which provide for

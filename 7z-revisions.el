@@ -9,8 +9,8 @@
 ;; windows and linux, and likely mac.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 3.2
-;; commit date: 2020-08-18
+;; version: 3.3
+;; commit date: 2020-08-20
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -27,15 +27,17 @@
 ;; 7z-revisions-mode minor mode, the current buffer is saved to a
 ;; 7-zip archive of the same name, whenever a save-buffer command is
 ;; issued, incrementally saving the latest revision by adding a new
-;; patch to the archive.  And, of course, the .7z extension can be
+;; patch to the archive.  And, optionally, the .7z extension can be
 ;; altered to something else, such as .8z, by setting the global
 ;; variable 7zr-archive-extension_default to ".8z".  Additionally, the
 ;; function 7z-revisions can be called interactively to view or
-;; consolidate past revisions in the archive.
+;; consolidate past revisions in the archive, providing word by word
+;; differential highlighting. In addition, syntax coloring is applied
+;; when viewing the diff files.
 ;;
 ;; If your document anywhere contains a specific tag in the text, such
-;; as 7z-revisions.el_rev= followed by nothing or any number,
-;; then upon execution of the function
+;; as 7z-revisions.el_rev= followed by nothing or any number, then
+;; upon execution of the function
 ;; 7zr-update-7z-revisions-tags-in-text, which is automatically called
 ;; upon save if the 7zr-auto-update-tags-in-text-p variable is set to
 ;; t, the highest revision number, incremented by 1, will be added to
@@ -43,12 +45,11 @@
 ;; replacing the previous number, if present.  A tag, for instance, of
 ;; 7zr-revisions.el_directory-of-archive=../ will specify the parent
 ;; directory as the directory where the archive resides, etc.  For
-;; another example,
-;; 7z-revisions.el_sha1-of-last-revision=
-;; causes the insertion of the sha1sum hash value of the last revision
-;; to be placed after the tag, in this case appearing after the equals
-;; sign, which e.g. in a blockchain sort of way, establishes a
-;; forensically authentic journal to show ones work.
+;; another example, 7z-revisions.el_sha1-of-last-revision= causes the
+;; insertion of the sha1sum hash value of the last revision to be
+;; placed after the tag, in this case appearing after the equals sign,
+;; which e.g. in a blockchain sort of way, establishes a forensically
+;; authentic journal to show ones work.
 ;;
 ;; For your convenience, the tags can be inserted into the document or
 ;; into the metadata file (the created-by-message file) using the
@@ -78,14 +79,15 @@
 ;;     M-x 7z-revisions
 ;;
 ;; When 7z-revisions-mode is active, the following two sequence key
-;; bindings take effect: F2 F3 = 7z-revisions, F2 c = edit note for
-;; next revision, F2 CTRL-c = edit raw notes file, F2 t = auto update
-;; tags, F2 3 = update tags, F2 CTRL-s = update tags & save buffer, F2
-;; l = goto line last changed, F2 p = when was line of point last
-;; changed, F2 s = select tag to insert, F2 CTRL-r = rename document &
-;; archive, F2 C-F2 regenerate all sha1 hashes using the diff files,
-;; F2 C-d = input (set) default archive directory, F2 C-f = edit
-;; metafile (created-by-message file), F2 ` = exit 7z-revisions-mode.
+;;   bindings take effect: F2 F3 = 7z-revisions, F2 c = edit note for
+;;   next revision, F2 CTRL-c = edit raw notes file, F2 t = auto
+;;   update tags, F2 3 = update tags, F2 CTRL-s = update tags & save
+;;   buffer, F2 l = goto line last changed, F2 p = when was line of
+;;   point last changed, F2 s = select tag to insert, F2 CTRL-r =
+;;   rename document & archive, F2 C-F2 regenerate all sha1 hashes
+;;   using the diff files, F2 C-d = input (set) default archive
+;;   directory, F2 C-f = edit metafile (created-by-message file), F2 `
+;;   = exit 7z-revisions-mode.
 ;;
 ;; When 7z-revisions is called, the following key bindings take
 ;;   effect: Enter = view the selected revision, j = view raw diff
@@ -106,12 +108,13 @@
 ;;   your document corresponding to the last line viewed from
 ;;   7z-revisions.
 ;;
-;; While viewing a raw diff file: q = quit, n = next, p = previous, w
-;;   = display day of the week of diff files timestamp, r = switch to
-;;   revision view, d = jump to next change hunk, e = jump to previous
-;;   change hunk, g = Quit 7z-revisions and then try to goto the line
-;;   in your document corresponding to the change hunk that was at
-;;   point.
+;; While viewing a raw diff file: q = quit (also C-c q), n = next
+;;   (also C-c n), p = previous (also C-c p), w = display day of the
+;;   week of diff files timestamp, r = switch to revision view, d =
+;;   jump to next change hunk (also C-c d), e = jump to previous
+;;   change hunk (also C-c e), g = Quit 7z-revisions and then try to
+;;   goto the line in your document corresponding to the change hunk
+;;   that was at point (also C-c g).
 ;;
 ;;
 ;; There are also some functions in the menu which provide for
@@ -177,7 +180,7 @@
    )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 3.2)
+(setq 7z-revisions-version 3.3)
 (setq 7zr-track-md5sum-hashes-p t)
 (setq 7zr-track-md5sum-hashes-p_default t)
 (setq 7zr-archive-prefix "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
@@ -302,9 +305,8 @@
 (setq 7zr-misc-value "")
 (setq 7zr-archive-name "")
 (setq 7zr-buffer-without-extension "")
-
 (setq 7zr-buffer-filename "")
-
+(setq 7zr-major-mode-of-file nil)
 
 
 ;;(setq 7zr-update-7z-revisions-tag-in-metadata-file_compile-staging-directory "compile-staging-directory=")
@@ -1255,8 +1257,8 @@ the patch files to be deleted in the region, the revision notes of which are all
       (let ((tem to))
 	(setq to from from tem)))
   (let
-      ( (abort_function nil) from-patch to-patch    line_from  point-from-minus-first-line (diffs_stack ()) major-mode-of-file  )
-    (setq 7zr-summary-consolidate-string "")
+      ( (abort_function nil) from-patch to-patch    line_from  point-from-minus-first-line (diffs_stack '()) accumulated_string  )
+    (setq accumulated_string "")
 
 
     (setq 7zr-patch-command-called-x-times 0)
@@ -1301,7 +1303,7 @@ the patch files to be deleted in the region, the revision notes of which are all
 	(narrow-to-region point-from-minus-first-line point-to-minus-last-line)
 	(goto-char (point-min))
 	(while (re-search-forward "\\([0-9]+\\.[0-9]+\\)[[:blank:]]+\\([0-9]+\\)[[:blank:]]+\\([0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\} [0-9]\\{2\\}:[0-9]\\{2\\}:[0-9]\\{2\\}\\)" nil t)
-	  (setq 7zr-summary-consolidate-string (concat 7zr-summary-consolidate-string " " (match-string-no-properties 1)))
+	  (setq accumulated_string (concat accumulated_string " " (match-string-no-properties 1)))
 	  (push (list (match-string-no-properties 1) (match-string-no-properties 3) (point)) diffs_stack)  ;; diffs_stack contains rev datetime and pos
 	  )
 	)   ; save-restriction
@@ -1370,8 +1372,11 @@ the patch files to be deleted in the region, the revision notes of which are all
 	  (7zr-summary-view-raw-diff-file-highlight)
 	  (set-buffer-modified-p nil)	  
 	  (toggle-read-only 1)
-	  (when (setq major-mode-of-file (7zr-find-auto-mode))       ;; apply auto-mode 
-	    (funcall (symbol-value 'major-mode-of-file)))
+	  (setq 7zr-major-mode-of-file (7zr-find-auto-mode))       ;; apply auto-mode
+	  (when 7zr-major-mode-of-file
+	    (funcall (symbol-value #'7zr-major-mode-of-file))
+	    )
+	    
 	  )   ;; progn
       (message "view diffs aborted")
       ) ;; if
@@ -1970,8 +1975,8 @@ them."
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c d") '7zr-view_jump_to_next_difference)   
     (define-key map (kbd "C-c e") '7zr-view_jump_to_previous_difference)
-    (define-key map (kbd "C-c n") '7zr-view_previous_page)
-    (define-key map (kbd "C-c p") '7zr-view_next_page)
+    (define-key map (kbd "C-c p") '7zr-view_previous_page)
+    (define-key map (kbd "C-c n") '7zr-view_next_page)
     (define-key map (kbd "C-c q") '7zr-view-quit)
     (define-key map (kbd "d") '7zr-view_jump_to_next_difference)   
     (define-key map (kbd "e") '7zr-view_jump_to_previous_difference)
@@ -1981,6 +1986,8 @@ them."
     (define-key map (kbd "t") '7zr-view_datetime)
     (define-key map (kbd "u") '7zr-view-quit_view_diff)
     (define-key map (kbd "q") '7zr-view-quit)
+    (define-key map (kbd "g") '7zr-view_quit7zr_then_goto_line_viewed)
+    (define-key map (kbd "C-c g") '7zr-view_quit7zr_then_goto_line_viewed)
     (define-key map (kbd "<f2> C-p") '7zr-goto-rev-region-last-changed)
     (define-key map [menu-bar 7zr-view]
       (cons "7zr-view" (make-sparse-keymap "7zr-view")))
@@ -2506,7 +2513,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 	    )
 	  (insert (concat 7zr-update-7z-revisions-tag-in-metadata-os_type (symbol-name system-type)))
 	  (newline)
-	  (insert (concat 7zr-update-7z-revisions-tag-in-metadata-buffer_file_coding_system  7zr-buffer-file-coding-system))
+	  (insert (concat 7zr-update-7z-revisions-tag-in-metadata-buffer_file_coding_system  7zr-buffer_file_coding_system))
 	  (newline)
 	  (insert (concat "7z-revisions-version=" (number-to-string 7z-revisions-version)))
 	  (newline)
@@ -2739,6 +2746,15 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 	(substring filenamestring 0 (- len))
       filenamestring
       )
+    )
+  )
+
+(defun 7zr-sans-prepend (prepend filename)
+  "Strips a prepended text from the beginning of the filename.  This function is equivalent to string-remove-prefix"
+  (let ((len (length prepend)))
+    (if (string= (substring filename 0  len) prepend)
+ 	(substring filename len nil)
+      filename)
     )
   )
 
@@ -3289,6 +3305,9 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
   (if (string= (7zr-sans-archive-extension (dired-get-file-for-visit)) (dired-get-file-for-visit))
       (message (concat "7z-revision only works with archives that end in a " 7zr-archive-extension " extension."))
 					; else
+    (if (boundp 'evil-mode)
+	(add-to-list 'evil-emacs-state-modes '7zr-summary-mode)
+      )
     
     (unless (file-directory-p 7zr-temp-directory)
       (make-directory 7zr-temp-directory t))
@@ -3306,7 +3325,7 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
     (setq 7zr-buffer-filename-extension (7zr-what-is-extension-of-filename 7zr-buffer))
     (setq 7zr-archive-name (file-name-nondirectory (dired-get-file-for-visit)))  
     (when (7zr-string-starts-with-p 7zr-buffer 7zr-archive-prefix)
-      (setq 7zr-buffer (string-remove-prefix 7zr-archive-prefix 7zr-buffer)))
+      (setq 7zr-buffer (7zr-sans-prepend 7zr-archive-prefix 7zr-buffer)))
     
     (setq 7zr-buffer-filename 7zr-buffer)
     
@@ -3320,13 +3339,18 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
       (save-window-excursion  
 	(make-directory tmpdir t)
 	(setq tmpfiles  (directory-files tmpdir 'full)) 
-	(shell-command (concat "7zr e -aoa -o" tmpdir " " 7zr-archive-name " -i\\!" 7zr-prepend-to-latest-revision "*"))
+	(let ((escape_out "\\"))
+	  (if 7zr-os_is_windows_p
+	      (setq escape_out "")
+	    )
+	  (shell-command (concat "7z e -aoa -o" tmpdir " " 7zr-archive-name " -i" escape_out "!" 7zr-prepend-to-latest-revision "*"))
+	  )
 	(setq tmpfiles2 (directory-files tmpdir 'full))
 	(dolist (x tmpfiles2 newfile_name) (progn (when (not (member x tmpfiles)) (setq newfile_name x))))
 	(if (not newfile_name)
-	    (error "cant seem to open this archive")
+	    (error "Cant seem to run 7z-revisions on this archive.")
 					; else
-	  (setq 7zr-original-version (string-remove-prefix 7zr-prepend-to-latest-revision (file-name-nondirectory newfile_name )))
+	  (setq 7zr-original-version (7zr-sans-prepend 7zr-prepend-to-latest-revision (file-name-nondirectory newfile_name )))
       	  (setq newfile (find-file-read-only newfile_name))
 	  (7zr-populate-initial-global-vars_dired)
 	  (kill-buffer newfile)
@@ -4030,7 +4054,10 @@ STRING is the output line from PROC.  Not used."
 	 (not (string= filename_trimmed ""))
 	 (file-exists-p filename_trimmed )
 	 (not (string= filename_trimmed 7zr-temp-directory)))
-	(delete-file filename_trimmed)
+	(progn
+	  (delete-file filename_trimmed)
+	  t
+	  )
       nil
       )
     )
@@ -4045,7 +4072,10 @@ STRING is the output line from PROC.  Not used."
 	 (not (string= filename_trimmed ""))
 	 (file-exists-p filename_trimmed )
 	 (not (string= filename_trimmed 7zr-temp-directory)))
-	(delete-file filename_trimmed)
+	(progn 
+	  (delete-file filename_trimmed)
+	  t
+	  )
       nil
       )
     (cd saved-directory)
@@ -7705,10 +7735,10 @@ Tries to be version control aware."
     (setq 7zr-buffer_file_coding_system (symbol-name buffer-file-coding-system))
     (setq 7zr-buffer_is_msdos_p (string-match-p "dos" (symbol-name buffer-file-coding-system)))
     
-    (when (not 7zr-buffer-filename_including_dir)
-      (error "Buffer must be associated with a file.")
-      )
-    (setq 7zr-buffer (file-name-nondirectory 7zr-buffer-filename_including_dir))
+    ;(when (not 7zr-buffer-filename_including_dir)
+     ; (error "Buffer must be associated with a file.")
+     ; )
+   ; (setq 7zr-buffer (file-name-nondirectory 7zr-buffer-filename_including_dir))
   
 
     (setq 7zr-buffer-without-extension (7zr-sans-extension 7zr-buffer)) 
@@ -7719,7 +7749,7 @@ Tries to be version control aware."
 
 
     (setq 7zr-archive-extension-suffix (replace-regexp-in-string "\\." "" 7zr-archive-extension))
-    (setq 7zr-buffer-file-coding-system (symbol-name buffer-file-coding-system))
+    (setq 7zr-buffer_file_coding_system (symbol-name buffer-file-coding-system))
     )
   
    ; (setq tag_in_text (7zr-find-tag-in-text 7zr-update-7z-revisions-tag-in-text_directory-of-archive))
