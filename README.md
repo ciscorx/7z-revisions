@@ -56,9 +56,9 @@ Compatible with windows and linux, and probably mac.
 **M-x** **7zr-revision-note-annotation** = enter a note to be associated with next revision save, or viewing the revisions summary list, edit the note of the line at point.<br/>
 **M-x** **7zr-modify-raw-hash-file**<br/>
 **M-x** **7zr-modify-raw-notes-file**<br/>
-**M-x** **7zr-rename-document-and-its-archive**<br/>
-**M-x** **7zr-regenerate-all-hashes-from-diffs**<br/>
-**M-x** **7zr-refresh-all-bookmarks = go through all the bookmarks in bookmark-default-file and if they have 7z-revisions archives associated with them then update their respective bookmark positions to reflect their current positions, in light of any lines that may have been added before them after the bookmarks had been created.<br/>
+**M-x** **7zr-rename-document-and-its-archive**<br/> 
+**M-x** **7zr-regenerate-all-hashes-from-diffs**  (This is also callable when opening an archive from dired-mode)<br/>
+**M-x** **7zr-refresh-all-bookmarks** = go through all the bookmarks in bookmark-default-file and if they have 7z-revisions archives associated with them then update their respective bookmark positions to reflect their current positions, in light of any lines that may have been added before them after the bookmarks had been created.<br/>
 **M-x** **7z-revisions-mode** = updates the archive every time your document is saved, by automatically calling **M-x** **7zr-commit**<br/>
 **M-x** **7z-revisions** = starts the 7z-revisions list buffer to view past revisions<br/>
      
@@ -116,15 +116,21 @@ Compatible with windows and linux, and probably mac.
  d = jump to next change hunk (also C-c d),<br/>
  e = jump to previous change hunk (also C-c e), <br/>
  g = Quit 7z-revisions and then try to goto the line in your document corresponding to the change hunk that was at point (also C-c g).<br/>
- 
 
  There are also some functions in the menu which provide for
  consoldating the current days worth of changes, or last hour
- worth of changes, etc.
+ worth of changes, etc.<br/>
 
  Also, if you know part of a sha1hash value and dont know the
  revision, theres a menu option to goto the revision pertaining to the
- hash.
+ hash.<br/>
+
+ In dired-mode, the key binding C-c z calls 7zr-dired-7z-revisions
+ on the archive at point.  And, when an archive is opened in this
+ matter, the function M-x 7zr-regenerate-all-hashes-from-diffs is
+ callable, from the 7zr-sum page, but has no menu or keyboard
+ shorcut, so you would have to actually type it out.<br/>
+
 
 ## Required features:<br/>
    hl-line+.el,<br/>
