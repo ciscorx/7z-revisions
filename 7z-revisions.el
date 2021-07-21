@@ -9,7 +9,7 @@
 ;; windows and linux, and likely mac, using emacs version 23 or above.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 3.5
+;; version: 3.6
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -181,7 +181,7 @@
    )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 3.5)
+(setq 7z-revisions-version 3.6)
 (setq 7zr-track-md5sum-hashes-p t)
 (setq 7zr-track-md5sum-hashes-p_default t)
 (setq 7zr-archive-prefix "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
@@ -4089,6 +4089,7 @@ STRING is the output line from PROC.  Not used."
   )
 
 
+
   
 (defun 7zr-revisions-load-hashtable-unsecure ()
   "Extracts hashtable from .7z archive and loads it.  The use of this function is ill-advised, with respect to security, if loading archive files from public platforms.  Any attacker with access to the hash file could embed mallicious code into it.  Best to use the (7zr-revisions-load-hashtable function), albeit slower.  Although, if you are that paranoid, you can always check the raw hash file, and raw notes file using F2 C-f and F2 c-c, respectively, from the main document, before invoking (7z-revisions)."
@@ -4128,6 +4129,31 @@ STRING is the output line from PROC.  Not used."
 	
       ) ; let
     ) ; if 7zr-summary-page
+  ) ; save-window-excursion
+)  
+
+  
+(defun 7zr-revisions-load-hashtable-unsecure_renaming_archive ()
+  "This function is called exclusively from 7zr-revisions-rename-document-and-its-archive, as a quick bugfix.  Extracts hashtable from .7z archive and loads it.  The use of this function is ill-advised, with respect to security, if loading archive files from public platforms.  Any attacker with access to the hash file could embed mallicious code into it.  Best to use the (7zr-revisions-load-hashtable function), albeit slower.  Although, if you are that paranoid, you can always check the raw hash file, and raw notes file using F2 C-f and F2 c-c, respectively, from the main document, before invoking (7z-revisions)."
+  (save-window-excursion
+    
+    (let ((hash "") lines last_buffer)
+      (setq last_buffer (current-buffer))
+      (setq 7zr-document-namechanges ())
+      (setq 7zr-current-original-version 7zr-original-version)
+
+      (set (make-local-variable '7zr-active-document_original-version) 7zr-original-version)
+      
+      (shell-command (concat "7z e -aoa -o" (7zr-shell-quote-argument 7zr-temp-directory) " " (7zr-shell-quote-argument (concat 7zr-archive-directory 7zr-archive-name)) " " (7zr-shell-quote-argument (concat 7zr-prepend-to-hash-file  7zr-current-original-version))))
+      (setq lines (/ (nth 7 (file-attributes (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))) 68))  ; instead of using awk to get the number of lines, number of lines are estimated based on 68 characters per line in the hash file
+      (setq lines (+ lines 100))	  	  
+
+
+      (set (make-local-variable '7zr-hasht)  (make-hash-table :size lines :test 'equal))
+
+      (load-file (concat 7zr-temp-directory 7zr-prepend-to-hash-file 7zr-original-version))
+	
+      ) ; let
   ) ; save-window-excursion
 )  
 
@@ -7246,7 +7272,7 @@ Tries to be version control aware."
     (let ((name (buffer-name)) (filename (buffer-file-name)) newname newname_sans_directory)
       (7zr-populate-initial-global-vars)  ; check for archive directory tag in document
       (7zr-get-highest-rev-and-original-version)
-      (7zr-revisions-load-hashtable-unsecure)
+      (7zr-revisions-load-hashtable-unsecure_renaming_archive)
       (if (not filename)
 	  (message "Buffer '%s' is not visiting a file!" name)
 	(setq newname (read-file-name "Rename document to:" name))
