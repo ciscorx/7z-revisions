@@ -2,14 +2,16 @@
 ;; This Emacs app is not a version control system, but simply an
 ;; incremental backup system that easily lets one browse and search
 ;; past saves of a single file, keeping incremental diffs in a .7z
-;; archive, facilitating quick audits.  Also, provides word by word
+;; archive, facilitating quick audits, bringing a convention thats
+;; already common in the software programming world to the realm of
+;; business and every day GTD.  Also, provides word by word
 ;; differential highlighting.  Also, provides syntax coloring when
 ;; viewing the diff files.  Useful when git may be considered
 ;; over-kill and its .git directories cumbersome.  Compatible with
 ;; windows and linux, and likely mac, using emacs version 23 or above.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 3.6
+;; version: 3.7
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -133,7 +135,11 @@
 ;;   p7zip
 ;;   diffutils  ( just the diff command )
 ;;
-;; When running on windows, access to additional dos commands is necessary, such as diff, awk, fciv, and optionally grep.
+;; When running on windows, access to additional dos commands is
+;; necessary, such as diff, awk, sha1sum, and optionally grep, most of
+;; which is supplyed via CoreUtils for Windows
+;; http://gnuwin32.sourceforge.net/packages/coreutils.html
+;;
 ;;   Install diffutils for windows:
 ;;     http://gnuwin32.sourceforge.net/packages/diffutils.htm and then
 ;;     append C:\Program Files\GnuWin32\bin, or whatever directory
@@ -143,8 +149,6 @@
 ;;     c:\windows\system32
 ;;   Download awk from
 ;;     http://gnuwin32.sourceforge.net/packages/gawk.htm
-;;   Download the sha1sum equivalent, fciv,
-;;     https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533
 ;;   Download 7zip https://www.7-zip.org/download.html and then put
 ;;     7z.exe and 7z.dll in windows/system32 directory, or any
 ;;     directory listed in the path environment variable
@@ -174,6 +178,7 @@
 (add-hook 'org-mode-hook '7zr-turn-on-7z-revisions-mode)
 (add-hook 'text-mode-hook (lambda () (7z-revisions-mode 1)))
 (add-hook 'lua-mode-hook (lambda () (7z-revisions-mode 1)))
+(add-hook 'c-mode-hook (lambda () (7z-revisions-mode 1)))
 (add-hook 'emacs-lisp-mode-hook (lambda () (7z-revisions-mode 1)))
 
  (if (boundp 'evil-mode)
@@ -271,7 +276,7 @@
 (setq 7zr-add-to-archive-command "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on")
 (setq 7zr-buffer "")       ; buffer of active document, before calling 7z-revisions
 (setq 7zr-buffer-misc nil)
-(setq 7zr-sha1sum-command-windows "fciv.exe -sha1")
+(setq 7zr-sha1sum-command-windows "sha1sum")
 (setq 7zr-sha1sum-post-command-windows " | more +3 ")
 (setq 7zr-sha1sum-command-linux "sha1sum")
 (setq 7zr-sha1sum-post-command-linux " ")
@@ -368,10 +373,10 @@
 	 (setq 7zr-awk-not-installed-for-windows t)
 	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm")
 	 )
-	((not (executable-find "fciv.exe"))
-	 (setq 7zr-mswindows-requirements-failed "Need fciv.exe for sha1sum https://www.microsoft.com/en-us/download/confirmation.aspx?id=11533"))
+	((not (executable-find "sha1sum"))
+	 (setq 7zr-mswindows-requirements-failed "Need sha1sum from CoreUtils for Windows  http://gnuwin32.sourceforge.net/packages/coreutils.html"))
 	((not (executable-find "7z.exe"))
-	 (setq 7zr-mswindows-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html")))
+	 (setq 7zr-mswindows-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html... or may need to set PATH=%PATH%;C:/Program Files/7-zip/ from the windows control panel")))
   (unless (executable-find "grep.exe")  ; dont fail if we cant find grep since its only used in one trivial function
     (setq 7zr-disable-summary-goto-sha1 t))
   (when 7zr-mswindows-requirements-failed
