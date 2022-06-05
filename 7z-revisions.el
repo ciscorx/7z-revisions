@@ -11,7 +11,7 @@
 ;; windows and linux, and likely mac, using emacs version 23 or above.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 3.7
+;; version: 3.8
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -186,7 +186,7 @@
    )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 3.6)
+(setq 7z-revisions-version 3.8)
 (setq 7zr-track-md5sum-hashes-p t)
 (setq 7zr-track-md5sum-hashes-p_default t)
 (setq 7zr-archive-prefix "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
@@ -2925,8 +2925,9 @@ filename is stored in 7zr-pointer-lastviewed_raw_diff_file"
 	  
 
 (defun 7zr-sans-extension ( filenamestring )
-  (replace-regexp-in-string "\\..+" "" filenamestring)
-)
+;;  (replace-regexp-in-string "\\..+" "" filenamestring)
+  (file-name-sans-extension filenamestring)
+  )
 
 (defun 7zr-sans-archive-extension (filenamestring)
   "Strips the extension from the filename if its the 7zr-archive-extension."
