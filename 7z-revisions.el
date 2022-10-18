@@ -11,7 +11,7 @@
 ;; windows and linux, and likely mac, using emacs version 23 or above.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 3.8
+;; version: 3.9
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -186,7 +186,7 @@
    )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 3.8)
+(setq 7z-revisions-version 3.9)
 (setq 7zr-track-md5sum-hashes-p t)
 (setq 7zr-track-md5sum-hashes-p_default t)
 (setq 7zr-archive-prefix "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
@@ -276,8 +276,8 @@
 (setq 7zr-add-to-archive-command "7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on")
 (setq 7zr-buffer "")       ; buffer of active document, before calling 7z-revisions
 (setq 7zr-buffer-misc nil)
-(setq 7zr-sha1sum-command-windows "sha1sum")
-(setq 7zr-sha1sum-post-command-windows " | more +3 ")
+(setq 7zr-sha1sum-command-windows "CertUtil -hashfile")
+(setq 7zr-sha1sum-post-command-windows " sha1 | more +3 ")
 (setq 7zr-sha1sum-command-linux "sha1sum")
 (setq 7zr-sha1sum-post-command-linux " ")
 (setq 7zr-document-namechanges ())
@@ -373,8 +373,8 @@
 	 (setq 7zr-awk-not-installed-for-windows t)
 	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm")
 	 )
-	((not (executable-find "sha1sum"))
-	 (setq 7zr-mswindows-requirements-failed "Need sha1sum from CoreUtils for Windows  http://gnuwin32.sourceforge.net/packages/coreutils.html"))
+	((not (executable-find "certutil"))
+	 (setq 7zr-mswindows-requirements-failed "Need certutil for sha1 checksum"))
 	((not (executable-find "7z.exe"))
 	 (setq 7zr-mswindows-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html... or may need to set PATH=%PATH%;C:/Program Files/7-zip/ from the windows control panel")))
   (unless (executable-find "grep.exe")  ; dont fail if we cant find grep since its only used in one trivial function
@@ -6260,7 +6260,8 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
 (defun 7zr-remove-all-control-Ms-from-ends-of-lines ()
   (interactive)
   (goto-char (point-min))
-  (while (re-search-forward "$" nil t)
+  (while (re-search-forward "
+$" nil t)
     (replace-match "")
     )
   (goto-char (point-min))
@@ -6273,7 +6274,8 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
   (interactive)
   (goto-char (point-min))
   (while (re-search-forward "^---$" nil t)
-    (insert "")
+    (insert "
+")
     (forward-line 1)
     (beginning-of-line)
     )
@@ -6281,12 +6283,14 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
   (goto-char (point-min))
   (while (re-search-forward "^[0-9]" nil t)
     (end-of-line)
-    (insert "")
+    (insert "
+")
     (forward-line 1)
     (beginning-of-line)
     )
   (goto-char (point-min))
-  (while (re-search-forward "
+  (while (re-search-forward "
+
 " nil t)
     (replace-match "
 ")
@@ -6299,8 +6303,10 @@ the previous.  This function is called from 7zr-reconstruct-rev-from-patches_LIN
   "DEFUNCT"
   (interactive)
   (goto-char (point-min))
-  (while (re-search-forward "[^]$" nil t)
-    (insert "")
+  (while (re-search-forward "[^
+]$" nil t)
+    (insert "
+")
     (forward-line 1)
     (beginning-of-line)
     )
