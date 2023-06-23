@@ -11,7 +11,7 @@
 ;; windows and linux, and likely mac, using emacs version 23 or above.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 3.9
+;; version: 4.0
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -186,7 +186,7 @@
    )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 3.9)
+(setq 7z-revisions-version 4.0)
 (setq 7zr-track-md5sum-hashes-p t)
 (setq 7zr-track-md5sum-hashes-p_default t)
 (setq 7zr-archive-prefix "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
@@ -368,19 +368,19 @@
   (setq 7zr-temp-directory 7zr-temp-directory-windows-nt)
   (cond
 	((not (executable-find "diff.exe"))
-	 (setq 7zr-mswindows-requirements-failed "Need diff.exe from http://gnuwin32.sourceforge.net/packages/diffutils.htm"))
+	 (setq 7zr-mswindows-requirements-failed "Need diff.exe from http://gnuwin32.sourceforge.net/packages/diffutils.htm or http://msys2.org.  If msys2 you may need to issue pacman -S diff-utils from the msys2 terminal"))
 	((not (executable-find "awk.exe"))
 	 (setq 7zr-awk-not-installed-for-windows t)
-	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm")
+	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm or http://msys2.org")
 	 )
 	((not (executable-find "certutil"))
 	 (setq 7zr-mswindows-requirements-failed "Need certutil for sha1 checksum"))
 	((not (executable-find "7z.exe"))
-	 (setq 7zr-mswindows-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html... or may need to set PATH=%PATH%;C:/Program Files/7-zip/ from the windows control panel")))
+	 (setq 7zr-mswindows-requirements-failed "Need 7z.exe from https://www.7-zip.org/download.html... and may need to set system environment variable PATH=%PATH%;C:/Program Files/7-zip/ from the windows control panel")))
   (unless (executable-find "grep.exe")  ; dont fail if we cant find grep since its only used in one trivial function
     (setq 7zr-disable-summary-goto-sha1 t))
   (when 7zr-mswindows-requirements-failed
-    (error 7zr-mswindows-requirements-failed))
+    (error "%s" 7zr-mswindows-requirements-failed))
   (setq 7zr-sha1sum-command 7zr-sha1sum-command-windows)
   (setq 7zr-sha1sum-post-command 7zr-sha1sum-post-command-windows)
   (defun 7zr-awk-cmd-string ( fieldnum )
