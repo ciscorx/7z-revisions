@@ -11,7 +11,7 @@
 ;; windows and linux, and likely mac, using emacs version 23 or above.
 ;;
 ;; authors/maintainers: ciscorx@gmail.com
-;; version: 4.0
+;; version: 4.1
 ;;
 ;; This file is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published
@@ -186,7 +186,7 @@
    )
 
 ;; GLOBAL VARIABLES ----------------------
-(setq 7z-revisions-version 4.0)
+(setq 7z-revisions-version 4.1)
 (setq 7zr-track-md5sum-hashes-p t)
 (setq 7zr-track-md5sum-hashes-p_default t)
 (setq 7zr-archive-prefix "")  ; hide archive file by using a "." character as the prefix (only works on linux and mac os)
@@ -368,7 +368,7 @@
   (setq 7zr-temp-directory 7zr-temp-directory-windows-nt)
   (cond
 	((not (executable-find "diff.exe"))
-	 (setq 7zr-mswindows-requirements-failed "Need diff.exe from http://gnuwin32.sourceforge.net/packages/diffutils.htm or http://msys2.org.  If msys2 you may need to issue pacman -S diff-utils from the msys2 terminal"))
+	 (setq 7zr-mswindows-requirements-failed "Need diff.exe from http://gnuwin32.sourceforge.net/packages/diffutils.htm or http://msys2.org.  If msys2 you may need to issue pacman -S diffutils from the msys2 terminal"))
 	((not (executable-find "awk.exe"))
 	 (setq 7zr-awk-not-installed-for-windows t)
 	 (setq 7zr-mswindows-requirements-failed "Need awk.exe from http://gnuwin32.sourceforge.net/packages/gawk.htm or http://msys2.org")
