@@ -1,7 +1,17 @@
-					; 7zrs.el
+; 7zrs.el              -*- lexical-binding: t; -*-          
 ; This script will update or create a 7r-revision archive, useful in a terminal where screen or emacsclient is not available.
-; This script is only to be called from the command line and called like so: emacs target_file.txt -Q --eval "(progn (load-file \"7zrs.el\"))" 
+; This script is only to be called from the command line and called like so: emacs target_file.txt -Q -l 7zrs.el 
 ;   where the target file must precede the command line arguments.
+; Ideally add something like the following to .bashrc
+;  7zrs () {
+;     if [ -z "$1" ]; then
+;  	   echo "No target file specified"
+;     elif [ ! -f "$1" ]; then
+;             echo "Target file doesnt exist"
+;     else	
+;     emacs "$1" -Q -l /opt/.emacs.d/elisp/7zrs.el
+;     fi
+;    }
 ; The following code was imported from 7z-revisions.el:
 ; add function 7zr-save-buffer, but disable 7z-revisions-mode must be enabled in (7zr-save-buffer) 
 ; add var 7zr-update-7z-revisions-tags-in-textp
@@ -979,9 +989,17 @@ is invoked."
   )             
 
 ; find the first file associated buffer in memory and update its 7z-revisions archive, or create one if none exists for that file, and then exit emacs
-(catch 'found
-  (dolist (buffer (buffer-list))
-    (when (buffer-file-name buffer)
-      (switch-to-buffer buffer)
-      (throw 'found t))))
-(set-buffer-modified-p t)(7zr-commit)(kill-emacs)
+(mapcar (lambda (buffer)
+          (when (and (not (get-buffer-window buffer 0)) (buffer-file-name buffer))
+            (switch-to-buffer buffer)
+	    (set-buffer-modified-p t)
+	    (7zr-commit)
+	    (kill-emacs)
+            (error "")))
+        (buffer-list))
+   
+
+
+
+
+
