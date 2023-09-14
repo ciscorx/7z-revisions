@@ -1,24 +1,29 @@
 #!/bin/bash
 
-#    This script allows updating or creating a 7z-revisions.el archive without the
-#    need for emacs, useful if you're in a terminal that lacks screen, emacs, or emacsclient.  You currently still need emacs, however, to view the revisions.
+#    This script allows viewing updating or creating a 7z-revisions.el archive without the
+#    need for emacs, useful if you're in a terminal that lacks screen, emacs, or emacsclient.  
 
 # Usages:
 #    $0 [ -n NOTE_MESSAGE ] [ -d DIRECTORY_OF_ARCHIVE ] TARGET_DOCUMENT
-#    $0 [ -l ] [ -n NOTE_MESSAGE ] [ -c DIRECTORY_OF_DOCUMENT ] -a TARGET_ARCHIVE 
+#    $0 [ -L ] [ -n NOTE_MESSAGE ] [ -c DIRECTORY_OF_DOCUMENT ] -a TARGET_ARCHIVE 
 #    $0 [ -d DIRECTORY_OF_ARCHIVE ] -k  RENAMED_NEW_DOCUMENT_AND_ARCHIVE_NAME TARGET_DOCUMENT
-
+#    $0 -e REVISION_DIFF_TO_VIEW [ -c DIRECTORY_OF_DOCUMENT ] [ -a TARGET_ARCHIVE |  TARGET_DOCUMENT ] 
+#    $0 -E REVISION_TO_ROLLBACK_TO [ -c DIRECTORY_OF_DOCUMENT ] [ -a TARGET_ARCHIVE |  TARGET_DOCUMENT ] 
 #    Flags:
 #    -d Use this option to designate the directory for the archive. If not provided, the script will assume the archive is in the same directory as the target document. If you provide an archive file path, that archive will be the focus of the operation.
-#    -l Extract the latest version of a document to a directory (-c to specify directory).  The default path found in signature file is used if the -c flag is omitted.
+#    -L Extract the latest version of a document to a directory (-c to specify directory).  The default path found in signature file is used if the -c flag is omitted.
 #    -n Add a note in the notes file during update.
 #    -a Specify a particular archive to update, useful when the document linked to the archive is located somewhere else.
 #    -k Renames document and archive
+#    -z Alter document path, as shown in archive.
+#    -l list all revision numbers in archive
+#    -e view a specific diff of a revision via standard output
+#    -E extract a specific revision, overwriting target document with it
 
 # Requirements: dos2unix
 
 # Author/maintainer: ciscorx@gmail.com
-
+# set -x
 SIGNATURE_FILE='7z-revisions.el created this archive'  # please dont put a timestamp in this string or bad things may happen
 VERSION=3.9
 HASH_FILE=""
@@ -38,91 +43,138 @@ NEW_DOCUMENT_DIR=""
 LATEST_DOC_PRE="7zr-latest-"
 TARGET_HASH=""
 NOTE=""
+REV=""
 END_OF_LINE_ENCODING=
 BUFFER_FILE_ENCODING_SYSTEM=
 A_FLAG_INVOKED=false
 L_FLAG_INVOKED=false
+L_UPPERCASE_FLAG_INVOKED=false
+E_FLAG_INVOKED=false
+E_UPPERCASE_FLAG_INVOKED=false
 Z_FLAG_INVOKED=false
 K_FLAG_INVOKED=false
+U_FLAG_INVOKED=false
+J_FLAG_INVOKED=false
+U_UPPERCASE_FLAG_INVOKED=false
+J_UPPERCASE_FLAG_INVOKED=false
+X_UPPERCASE_FLAG_INVOKED=false
+M_FLAG_INVOKED=false
+
 ORIGINAL_VERSION=
 TIMESTAMP=`date +%Y-%m-%d_%H%M%S`
-
 TEXT_END_BOUNDS=7777    # all tags in text must reside with in the first 7777 characters of the beginning of the document in order to be seen
 UPDATE_TAGS_IN_TEXTP=t  # allow tags to be updated in text
 
+declare -ga TMPDIR_PER_DOC_order_list
+typeset -ag IDX2REV
+typeset -Ag REV2IDX
+declare -gA VALUES_IN_TEXT
 
-declare -A VALUES_IN_TEXT
-declare -A TAGS_IN_TEXT
-TAGS_IN_TEXT["rev"]="7z_1revisions.el_rev="
-TAGS_IN_TEXT["original_version"]="7z-1revisions.el_original-version="
-TAGS_IN_TEXT["directory_of_document"]="7z-1revisions.el_directory-of-document="
-TAGS_IN_TEXT["directory_of_archive"]="7z-1revisions.el_directory-of-archive="
-TAGS_IN_TEXT["archive_prefix"]="7z-1revisions.el_archive-prefix="
-TAGS_IN_TEXT["archive_extension"]="7z-1revisions.el_archive-extension="
-TAGS_IN_TEXT["track_hashes"]="7z-1revisions.el_track-sha1sum-hashes="
-TAGS_IN_TEXT["sha1_of_last_revision"]="7z-1revisions.el_sha1-of-last-revision="
+declare -ga KEYS_OF_TAGS_TO_AUTO_REPLACE
+KEYS_OF_TAGS_TO_AUTO_REPLACE=("rev" "last_hash" "latest_datetime"   "original_version" )
 
-
-declare -A VALUES_IN_METAFILE
-declare -A TAGS_IN_METAFILE
-TAGS_IN_METAFILE["rev"]="latest_revision="
-TAGS_IN_METAFILE["original_version"]="original-version="
-TAGS_IN_METAFILE["document_name"]="document_name="
-TAGS_IN_METAFILE["directory_of_document"]="document-directory="
-TAGS_IN_METAFILE["archive_prefix"]="archive-prefix="
-TAGS_IN_METAFILE["archive_extension"]="archive-extension="
-TAGS_IN_METAFILE["archive_created_datetime"]="archive-created_datetime="
-TAGS_IN_METAFILE["directory_of_document"]="directory-of-document="
-TAGS_IN_METAFILE["directory_of_archive"]="directory-of-archive="
-TAGS_IN_METAFILE["track_hashes"]="track-sha1sum-hashes="
-TAGS_IN_METAFILE["last_hash"]="last-sha1sum="
-TAGS_IN_METAFILE["sha1_of_last_revision"]="sha1-of-last-revision="
-TAGS_IN_METAFILE["os_type"]="created_on_os_system-type="
-TAGS_IN_METAFILE["buffer_file_coding_system"]="buffer-file-coding-system="
-TAGS_IN_METAFILE["end_of_line_encoding"]="end-of-line-encoding="
-TAGS_IN_METAFILE["editor_version"]="7z-revision-version="
+declare -gA HASHFILE
+declare -gA TAGS_IN_TEXT=(
+    ["rev"]="7z-revisions.el_rev="
+    ["original_version"]="7z-revisions.el_original-version="
+    ["directory_of_document"]="7z-revisions.el_directory-of-document="
+    ["directory_of_archive"]="7z-revisions.el_directory-of-archive="
+    ["archive_prefix"]="7z-revisions.el_archive-prefix="
+    ["archive_extension"]="7z-revisions.el_archive-extension="
+    ["track_hashes"]="7z-revisions.el_track-sha1sum-hashes="
+    ["last_hash"]="7z-revisions.el_sha1-of-last-revision="
+    ["latest_datetime"]="7z-revisions.el_latest-datetime="
+)
+declare -gA VALUES_IN_METAFILE
+declare -gA TAGS_IN_METAFILE=(
+    ["rev"]="latest_revision="
+    ["original_version"]="original-version="
+    ["document_name"]="document_name="
+    ["directory_of_document"]="document-directory="
+    ["archive_prefix"]="archive-prefix="
+    ["archive_extension"]="archive-extension="
+    ["archive_created_datetime"]="archive-created_datetime="
+    ["directory_of_document"]="directory-of-document="
+    ["directory_of_archive"]="directory-of-archive="
+    ["track_hashes"]="track-sha1sum-hashes="
+    ["last_hash"]="sha1sum-of-last-revision="
+    ["latest_datetime"]="latest-datetime="
+    ["sha1_of_last_revision"]="sha1-of-last-revision="
+    ["os_type"]="created_on_os_system-type="
+    ["buffer_file_coding_system"]="buffer-file-coding-system="
+    ["end_of_line_encoding"]="end-of-line-encoding="
+    ["editor_version"]="7z-revision-version="
+)
 
 # Beware: the following TMP_DIR directory will be deleted at the end of the program
-TMP_DIR=`mktemp -d`/
+BASE_TEMP=/tmp/a/
+USR_TMP_DIR="${BASE_TEMP}$(basename $0 '.sh')${USER}/"
+mkdir -p "${USR_TMP_DIR}"
+TMP_DIR=`mktemp -d -p ${BASE_TEMP}`/
+TMPDIR_PER_DOC=''
 
-usage() {                                 # Function: Print a help message.
-  echo "This script will update or create a 7z-revisions.el archive without the use of emacs.  If the -d directory_of_archive option is omitted, then the directory of the target document will be assumed.  If an actual archive file is passed as -d then that archive will be used for the archive.  Use the -a flag to update the document associated with the archive in question.  Use the -l flag to extract a copy of the latest revision from the archive."
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+echo $$ > /tmp/killthis
+
+function usage() {                                 # Function: Print a help message.
+  echo "This script will update or create a 7z-revisions.el archive without the use of emacs.  If the -d directory_of_archive option is omitted, then the directory of the target document will be assumed.  If an actual archive file is passed as -d then that archive will be used for the archive.  Use the -a flag to update the document associated with the archive in question.  Use the -L flag to extract a copy of the latest revision from the archive. Use -k for renaming archive and document, -z to alter documents path, -l to list all revision numbers in archive.  -e to view a diff of a specific revision via standard output, -E to extract a revision, overwriting target document."
   echo "Usage: $0 [ -n NOTE_MESSAGE ] [ -d DIRECTORY_OF_ARCHIVE ] TARGET_DOCUMENT" 1>&2 
 
-  echo "Usage: $0 [ -l ] [ -n NOTE_MESSAGE ] [ -c DIRECTORY_OF_DOCUMENT ] -a TARGET_ARCHIVE" 1>&2 
+  echo "Usage: $0 [ -L ] [ -n NOTE_MESSAGE ] [ -c DIRECTORY_OF_DOCUMENT ] -a TARGET_ARCHIVE" 1>&2 
+
+  echo "Usage: $0 -k NEW_DOCUMENT_AND_ARCHIVE_NAME -a TARGET_ARCHIVE" 1>&2
+
+  echo "Usage: $0 -e REVISION_DIFF_TO_VIEW [ -a TARGET_ARCHIVE | TARGET_DOCUMENT ]" 1>&2
+
+  echo "Usage: $0 -E REVISION_TO_ROLLBACK_TO [ -a TARGET_ARCHIVE | TARGET_DOCUMENT ]" 1>&2
 }
-exit_abnormal() {                         # Function: Exit with error.
+function exit_abnormal() {                         # Function: Exit with error.
   usage
 
 # rm  -rf "${TMP_DIR}"
   exit 1
 }
 
-exit_normal() {
+function exit_normal() {
     
 # rm  -rf "${TMP_DIR}"
 exit 0
 }
 
-strip_extension() {  
+function set_TMPDIR_PER_DOC() {
+
+    TMPDIR_PER_DOC="${USR_TMP_DIR}${DOCUMENT}_diffs/"
+    }
+
+function strip_extension() {  
     local filename="$1"
     base="${filename%.*}"
     echo "$base"
 }
 
-get_extension() {
+function get_extension() {
     local filename="$1"
     local extension="${filename##*.}"
     echo "$extension"
 }
 
-strip_timestamp() {
+function strip_timestamp() {
     string="$1"
     echo "${string%[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_[0-9][0-9][0-9][0-9][0-9][0-9]}"
 
 }
 
-valid_filename() {
+function set_END_OF_LINE_ENCODING() {
+
+    declare -g END_OF_LINE_ENCODING
+    if [ -z `dos2unix -ic "${TARGET_FILE}"` ]; then
+	END_OF_LINE_ENCODING=unix
+    else
+	END_OF_LINE_ENCODING=windows
+    fi
+}
+
+function valid_filename() {
     local filename="$1"
 
     # check for reserved names, case-insensitive
@@ -152,13 +204,13 @@ valid_filename() {
     return 0
 }
 
-get_note() {
+function get_note() {
     local rev="$1"
     local filename="$2"
     awk -F'"' "/\"${rev}\"/ {line=\$4} END{print line}" "${filename}"
 }
 
-put_note() {
+function put_note() {
     local rev="$1"
     local hash="$2"
     local tab="$3"
@@ -166,8 +218,31 @@ put_note() {
     echo "(puthash \"${rev}\" \"${hash}\" ${tab})" >> "${filename}"
 }
 
+function print_missing_revs() {
+
+    set_TMPDIR_PER_DOC
+    create_TMPDIR_PER_DOC_order_list 
+    echo 'The following revision numbers, which are not present, are consecutive to revisions that are present:'
+    awk '
+BEGIN {
+    prev = -1; # set to a value which is not expected as the first number
+}
+{
+    curr = int($1); # convert to integer
+
+    if(prev != -1 && curr - prev > 1) {
+        for(i=prev+1; i<curr; i++) {
+            print i;
+        }
+    }
     
-rename_file_and_archive() {
+    prev = curr; # update previous number
+}
+' <(printf "%s\n" "${TMPDIR_PER_DOC_order_list[@]}")
+    exit 0
+}
+
+function rename_file_and_archive() {
     
     local new_name="$1"
     local new_name_sans_extension=$(strip_extension "${new_name}") 
@@ -228,7 +303,7 @@ EOF
     exit_normal
 }
 
-populate_table() {
+function populate_table() {
     
     local file=$1
     local -n tags=$2
@@ -245,12 +320,13 @@ populate_table() {
 
     for key in "${!tags[@]}"
     do
-        local value=$(echo "$file_content" | grep -oP "${tags[$key]}\K\w+")
+        local value=$(echo "$file_content" | grep -oP "${tags[$key]}\K[\w_:.-]+")
         if [[ "$value" != "" ]]; then
             values[$key]=$value
         fi
     done
 
+# example usage:
 # Populate VALUES_IN_TEXT from textfile.txt
 #populate_table "textfile.txt" TAGS_IN_TEXT VALUES_IN_TEXT 7777
 
@@ -258,27 +334,37 @@ populate_table() {
 #populate_table "metafile.txt" TAGS_IN_METAFILE VALUES_IN_METAFILE
 }
 
-replace_tags_in_text() {
+function replace_tags_in_text() {
+    local file="${TARGET_FILE}"
+
+# Populate VALUES_IN_METAFILE from metafile.txt
+    populate_table "${TMP_DIR}${SIGNATURE_FILE}" TAGS_IN_METAFILE VALUES_IN_METAFILE
 
     # Read the first 7777 characters of the file into a variable
-    first_chars=$(head -c $TEXT_END_BOUNDS $file)
-    
-    # Loop over TAGS_IN_TEXT keys
-    for key in "${!TAGS_IN_TEXT[@]}"
-    do
-	# Get corresponding value in VALUES_IN_METAFILE
-	replacement=${VALUES_IN_METAFILE[$key]}
+    first_chars=$(head -c ${TEXT_END_BOUNDS} "${file}")
+
+    local file_changedp=false
+    for key in "${KEYS_OF_TAGS_TO_AUTO_REPLACE[@]}"; do
 	
-	# Perl one-liner to do in-place replacement
-	first_chars=$(echo "$first_chars" | perl -pe "s|($TAGS_IN_TEXT[$key])\S*|$1$replacement|g")
+	local replacement="${VALUES_IN_METAFILE[$key]}"
+	
+	
+	if [[ ! -z `grep "${TAGS_IN_TEXT[$key]}" <<< "${first_chars}"` ]]; then
+	    
+	    first_chars=$(echo -e "$first_chars" | perl -pe 'BEGIN { $prompt = shift; $answer = shift } s|($prompt)\S*|${1}$answer|g' "${TAGS_IN_TEXT[$key]}" "${replacement}") 
+	    file_changedp=true
+	fi
     done
-    
+
+    if $file_changedp; then
     # Replace the first 7777 characters of the file with the modified string
-    echo "$first_chars$(tail -c +$((TEXT_END_BOUNDS+1)) $file)" > $file
+       echo -e "${first_chars}$(tail -c +$(( TEXT_END_BOUNDS + 1 )) ${file})" > "${file}"
+
+    fi
 
 }
 
-get_signature_file() {
+function get_signature_file() {
 
 
     7z e -bso0 -bsp0 -aoa -o"${TMP_DIR}" "${ARCHIVE}" "${SIGNATURE_FILE}"  || { echo "Error extracting ${SIGNATURE_FILE} from ${ARCHIVE}"; exit 1; }
@@ -304,17 +390,18 @@ get_signature_file() {
 
     }
 
-get_hash_file() {
+function get_hash_file() {
 
     7z e -bso0 -bsp0 -aoa -o"${TMP_DIR}" "${ARCHIVE}" "${HASH_FILE}"  || { echo "Error extracting ${HASH_FILE} from ${ARCHIVE}"; exit 1; }
 }
-get_notes_file() {
+
+function get_notes_file() {
 
     7z e -bso0 -bsp0 -aoa -o"${TMP_DIR}" "${ARCHIVE}" "${NOTES_FILE}"  || { echo "Error extracting ${NOTES_FILE} from ${ARCHIVE}"; exit 1; }
 }
 
     
-get_latest_rev() {
+function get_latest_rev() {
 
     if [ -z `grep latest_revision= "${TMP_DIR}${SIGNATURE_FILE}"` ];  then
 	
@@ -349,7 +436,7 @@ get_latest_rev() {
     }
 
 
-get_document_name() {
+function get_document_name() {
 
 	if [ -z "${DOCUMENT_DIR}" ]; then
 	    
@@ -362,13 +449,13 @@ get_document_name() {
     }
 
 
-get_latest() {
+function get_latest() {
 
 
     get_signature_file
     
     7z e -bso0 -bsp0 -aoa -o"${TMP_DIR}"  "${ARCHIVE}" "${LATEST}"
-    if [ ${L_FLAG_INVOKED} = true ]; then
+    if [ ${L_UPPERCASE_FLAG_INVOKED} = true ]; then
 	if [ -z "${DOCUMENT_DIR}" ]; then
 	    
 	    DOCUMENT_DIR=`grep directory-of-document= "${TMP_DIR}${SIGNATURE_FILE}"   | awk -F'=' '{print  $2}'`
@@ -378,8 +465,10 @@ get_latest() {
 	    DOCUMENT=`grep document_name= "${TMP_DIR}${SIGNATURE_FILE}"   | awk -F'=' '{print  $2}'`
 	fi
 	if  [ -f "${DOCUMENT_DIR}/${DOCUMENT}" ]; then
-	    echo "Target file already exists!"
-	    exit_abnormal
+	    echo "Even though target file already exists, OVERWRITING with latest revision!"
+
+	    cp "${TMP_DIR}${LATEST}" "${DOCUMENT_DIR}/${DOCUMENT}"
+	    exit_normal
 	else
 	    cp "${TMP_DIR}${LATEST}" "${DOCUMENT_DIR}/${DOCUMENT}"
 	    echo "File ${LATEST} extracted to ${DOCUMENT_DIR}/${DOCUMENT}"
@@ -389,7 +478,301 @@ get_latest() {
     
 }
 
-alter_directory_of_document() {
+function get_all() {
+    get_signature_file
+    
+     
+    if [ ${L_UPPERCASE_FLAG_INVOKED} = true ]; then
+	if [ -z "${DOCUMENT_DIR}" ]; then
+	    
+	    DOCUMENT_DIR=`grep directory-of-document= "${TMP_DIR}${SIGNATURE_FILE}"   | awk -F'=' '{print  $2}'`
+	fi
+	if [ -z "${DOCUMENT}" ]; then
+	    
+	    DOCUMENT=`grep document_name= "${TMP_DIR}${SIGNATURE_FILE}"   | awk -F'=' '{print  $2}'`
+	fi
+    fi
+
+    set_TMPDIR_PER_DOC
+
+    mkdir -p "${TMPDIR_PER_DOC}" 
+    7z x -bso0 -bsp0 -aoa -o"${TMPDIR_PER_DOC}"  "${ARCHIVE}" 
+    chmod -R 777 "${TMPDIR_PER_DOC}"
+}
+
+    
+function load_HASHFILE() {
+    local rev
+    local hash
+    while read -r line; do
+	rev=`echo $line | awk '{print $1}'`
+	hash=`echo $line | awk '{print $2}'`
+	HASHFILE["${rev}"]="${hash}"    
+    done < <(cat "${TMPDIR_PER_DOC}${HASH_FILE_PRE}${ORIGINAL_VERSION}"  | awk '{ gsub(/"/, "", $3); gsub(/"/, "", $2); print $2 " "  $3 }')
+    }
+	     
+function verify_hash() {
+    local rev="$1"
+    local hash_performed=`sha1sum ${TMPDIR_PER_DOC}wip | awk '{print $1}'`
+    # local fetched_hash=`awk -v r="$rev" '$2 == "\"" r "\"" { gsub(/"/, "", $3); print $3 }' "${TMPDIR_PER_DOC}${HASH_FILE_PRE}${ORIGINAL_VERSION}"`
+    local fetched_hash="${HASHFILE[$rev]}"
+    if [[ ${fetched_hash} == '' ]]; then
+	echo "rev not found"
+    elif [[ ${hash_performed} == '' ]]; then
+	echo "wip file not found"
+    elif [[ ${hash_performed} == ${fetched_hash} ]]; then
+	echo "verified"
+    else
+	echo "mismatched"
+    fi
+    }
+
+function create_TMPDIR_PER_DOC_order_list() {
+
+    mkdir -p "${TMPDIR_PER_DOC}"
+
+    declare -ga TMPDIR_PER_DOC_order_list=()
+    local -i cnt=0
+    while read -r line; do 
+        TMPDIR_PER_DOC_order_list+=("$line")
+	REV2IDX[`echo $line | awk -F"|" '{print $1}'`]=$cnt
+	cnt+=1
+    done < <(7z l -ba "${ARCHIVE}"  | awk '/\W[0-9]+\.[0-9]+$/ { print $6"|"$1"|"$2}'  | sort -k1 -n )
+
+    #done < <(7z l -ba "${ARCHIVE}"  | awk '/\W[0-9]+\.[0-9]+$/ { command = "date -d "$1" +%A"; command | getline day;  close(command); print "D="$1" T="$2" d="day" rev= "$6}'  | sort -k5 -n )
+    
+}
+
+function extract_revision()  {
+    
+    # populate_rev2idx
+    create_TMPDIR_PER_DOC_order_list 
+    lines=${#TMPDIR_PER_DOC_order_list[@]}
+    lineno_found=${REV2IDX["$REV"]}
+    
+    lastrev=''
+    lastrev_idx=''
+    local -i direction=1
+    local -a dtag=()
+    if [[ -z  ${lineno_found} ]]; then
+	
+	 echo "Diff file of revision $REV not found in archive ${ARCHIVE}!"
+	exit_abnormal
+    fi
+    # verify if there is a lastrev and that the hashes match
+    if [ -f "${TMPDIR_PER_DOC}lastrev.txt" ]; then
+	 line=`cat "${TMPDIR_PER_DOC}lastrev.txt"`
+	 lastrev=`echo $line | awk '{print $1}'`
+	 lastrev_idx=`echo $line | awk '{print $2}'`
+	 direction=`echo $line | awk '{print $3}'`
+	 if [[ ! -z ${lastrev}  ]]; then
+	     verify_msg=$(verify_hash ${lastrev})
+	     if [[ $verify_msg != 'verified' ]]; then
+		 lastrev=''
+		 direction=''
+		 lastrev_idx=''
+	     fi
+	 fi
+    fi
+
+    if [ -z "$lastrev" ]; then
+	# is it closer to start or end of archive
+	if (( lineno_found < lines / 2 )); then
+	    direction=1
+	    lastrev=0.0
+	    lastrev_idx=-1
+	    cp "${TMPDIR_PER_DOC}${ORIGINAL_VERSION}" "${TMPDIR_PER_DOC}wip"
+	else
+
+	    direction=-1
+	    lastrev=`echo ${TMPDIR_PER_DOC_order_list[-1]} | awk -F"|" '{print $1}'`
+
+	    lastrev_idx=$(( lines - 1 ))
+	    cp "${TMPDIR_PER_DOC}${LATEST_DOC_PRE}${ORIGINAL_VERSION}" "${TMPDIR_PER_DOC}wip"
+	fi
+    else
+	
+        difference=$(( $lastrev_idx - $lineno_found ))
+	abs_difference=${difference#-}
+	
+	difference_from_end=$(( $lines - $lineno_found ))
+
+	difference_from_beginning=$(( $lineno_found ))
+	
+	# if rev is only 1 step away from last rev
+	if [[ abs_difference == "1" ]]; then
+	    if [[ ${difference:0:1} == "-" ]]; then
+		direction=1
+	    else
+		direction=-1
+	    fi
+	    
+	# if rev is closer to lastrev than to either the start or end of the archive, then start at  lastrev
+	elif (( lineno_found < lastrev_idx &&  difference_from_beginning < abs_difference )); then
+	    direction=1
+	    lastrev=0.0
+	    lastrev_idx=0
+	    cp ${TMPDIR_PER_DOC}${ORIGINAL_VERSION} ${TMPDIR_PER_DOC}wip
+	elif (( lineno_found < lastrev_idx  && difference_from_beginning >= abs_difference )); then
+	    direction=1
+	elif (( lineno_found >= lastrev_idx  &&  difference_from_end < abs_difference )); then
+	    direction=-1
+	    lastrev_idx=$(( lines - 1 ))
+
+	    lastrev=`echo ${TMPDIR_PER_DOC_order_list[-1]} | awk -F"|" '{print $1}'`
+	    cp ${TMPDIR_PER_DOC}${LATEST_DOC_PRE}${ORIGINAL_VERSION} ${TMPDIR_PER_DOC}wip
+	else
+	    direction=-1
+	fi
+    fi
+    
+    # start walking lastrev_idx: in order to walk upward toward
+    # ancestors we would need to apply the patch of the number we're
+    # currently on, and if going downward, apply patch of nearest
+    # progeny)
+    local patch_idx=$lastrev_idx
+    local -a dtag=("")
+    if [[ $direction == -1 ]]; then
+	dtag=("-R")
+    fi
+    while (( lastrev_idx != lineno_found )); do
+	
+        if [[ $direction == 1 ]]; then
+	    patch_idx=$(( lastrev_idx + 1 ))
+	else
+	    patch_idx=$lastrev_idx
+	fi
+	patchrev=`echo ${TMPDIR_PER_DOC_order_list[${patch_idx}]} | awk -F"|" '{print $1}'`
+	patch -p0 "${TMPDIR_PER_DOC}wip" "${dtag[@]}" -t <  "${TMPDIR_PER_DOC}${patchrev}"
+        lastrev_idx=$(( lastrev_idx + direction ))	
+	echo "lastrev_idx=${lastrev_idx} lineno_found=${lineno_found}"
+
+	if (( lastrev_idx < 0 || lastrev_idx > $lines )); then
+	    echo "Something has gone terribly wrong.  Aborting."
+	    exit 1
+	fi
+	
+    done
+     
+    echo -e "${lastrev} ${lastrev_idx} ${direction}" > "${TMPDIR_PER_DOC}lastrev.txt" 
+    cp "${TMPDIR_PER_DOC}wip" "${DOCUMENT_DIR}${DOCUMENT}"
+    echo "Overwriting ${DOCUMENT} with rev ${TMPDIR_PER_DOC_order_list[${lineno_found}]} !!"
+    exit_normal
+
+}
+    
+
+
+
+function quit_if_rev_diff_file_not_found() {
+
+    output_msg=`7z l -ba -bso0 -bsp0 -aoa  "${ARCHIVE}" "${REV}" | awk -v pattern=^${REV//./\\.} '$6 ~ pattern'`    
+    
+    if [  "${output_msg}" = '' ]; then
+	echo "Diff file of revision $REV not found in archive ${ARCHIVE}!"
+	exit_abnormal
+    fi
+}
+
+function print_rev_diff() {
+    get_signature_file
+    
+    output_msg=`7z e -o"${TMP_DIR}"  "${ARCHIVE}" "${REV}" | awk -v pattern=^No\ files\ to\ process '$0 ~ pattern'`
+    
+    if [[ -z "${output_msg}" ]]; then
+	cat "${TMP_DIR}${REV}"
+	set_TMPDIR_PER_DOC
+	mkdir -p "${TMPDIR_PER_DOC}"
+
+	local revidx=${REV2IDX["$REV"]}
+	local lastrevdiffprinted
+	create_TMPDIR_PER_DOC_order_list
+
+        lastrevdiffidxprinted=$revidx
+	echo ${TMPDIR_PER_DOC_order_list[$revidx]}
+	echo "$lastrevdiffidxprinted" > "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt"
+	exit_normal
+    else
+	echo "Diff file of revision $REV not found in archive ${ARCHIVE}!"
+	exit_abnormal
+	
+    fi
+    
+}
+
+function print_next_rev_diff() {
+    declare -i lastrevdiffidxprinted
+
+	set_TMPDIR_PER_DOC
+	
+	create_TMPDIR_PER_DOC_order_list
+	if [ ! -f "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt" ]; then
+
+
+	    lastrevdiffidxprinted=0
+	    
+	    echo "$lastrevdiffidxprinted" > "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt"
+	else
+	    
+	    lastrevdiffidxprinted=`head -1 "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt"`
+	    lastrevdiffidxprinted+=1
+	fi
+	
+	lines=${#TMPDIR_PER_DOC_order_list[@]}
+	if (( lastrevdiffidxprinted <= lines )); then
+	    echo "$lastrevdiffidxprinted" > "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt"
+	    
+	    REV=`echo ${TMPDIR_PER_DOC_order_list[$lastrevdiffidxprinted]} | awk -F"|" '{print $1}'`
+	    
+	    7z e -bso0 -bsp0 -aoa -o"${TMPDIR_PER_DOC}" "${ARCHIVE}" "${REV}"
+	    
+	    cat "${TMPDIR_PER_DOC}${REV}"
+	    
+	    echo "rev ${TMPDIR_PER_DOC_order_list[$lastrevdiffidxprinted]}"
+	else
+	    echo "Error: Out of range."
+	    exit 1
+	fi
+	
+	exit 0
+}
+
+
+function print_prev_rev_diff() {
+    declare -i lastrevdiffidxprinted
+    
+    set_TMPDIR_PER_DOC
+    
+    create_TMPDIR_PER_DOC_order_list
+    if [ ! -f "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt" ]; then
+	
+
+	lastrevdiffidxprinted=$(( ${#TMPDIR_PER_DOC_order_list[@]} - 1 ))
+	echo "$lastrevdiffidxprinted" > "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt"
+    else
+	
+	lastrevdiffidxprinted=`head -1 "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt"`
+	lastrevdiffidxprinted+=-1
+    fi
+    
+    if (( lastrevdiffidxprinted >= 0 )); then
+	echo "$lastrevdiffidxprinted" > "${TMPDIR_PER_DOC}last_rev_diff_idx_printed.txt"
+	
+
+	REV=`echo ${TMPDIR_PER_DOC_order_list[$lastrevdiffidxprinted]} | awk -F"|" '{print $1}'`
+	7z e -bso0 -bsp0 -aoa -o"${TMPDIR_PER_DOC}" "${ARCHIVE}" "${REV}"
+	cat "${TMPDIR_PER_DOC}${REV}"
+	
+
+	echo "rev ${TMPDIR_PER_DOC_order_list[$lastrevdiffidxprinted]}"
+    else
+	echo  "Error: Out of range."
+	exit 1
+    fi
+    exit 0
+    }
+
+function alter_directory_of_document() {
     
     7z e -bso0 -bsp0 -aoa -o"${TMP_DIR}" "${ARCHIVE}" "${SIGNATURE_FILE}"  || { echo "Error extracting ${SIGNATURE_FILE} from ${ARCHIVE}"; exit 1; }
 
@@ -397,12 +780,12 @@ alter_directory_of_document() {
 
     perl -pi -e "s|(directory-of-document)=.*|\1=${newpath}|" "${TMP_DIR}${SIGNATURE_FILE}"
 
-    7z a -bso0 -bsp0 "${ARCHIVE}" "${TMP_DIR}${SIGNATURE_FILE}"
+    7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on -bso0 -bsp0 "${ARCHIVE}" "${TMP_DIR}${SIGNATURE_FILE}"
     echo "updated document path to $newpath"
     exit_normal    
 }
 
-get_document_name_and_dir() {
+function get_document_name_and_dir() {
  
     7z e -bso0 -bsp0 -aoa -o"${TMP_DIR}" "${ARCHIVE}" "${SIGNATURE_FILE}"  || { echo "Error extracting ${SIGNATURE_FILE} from ${ARCHIVE}"; exit 1; }
     DOCUMENT_DIR=`grep directory-of-document= "${TMP_DIR}${SIGNATURE_FILE}" | awk -F'=' '{print $2}'`
@@ -418,7 +801,33 @@ get_document_name_and_dir() {
 
     }
 
-while getopts ":z:n:d:k:a:c:l" options; do
+function add_decimal_point_to_REV_if_there_isnt_one() {
+
+    # Check if the variable contains only numbers and possibly a single decimal point
+    if [[ ! "$REV" =~ ^[0-9]*\.?[0-9]+$ ]]; then
+        echo "Error: revision number must be a real number or integer"
+        exit 1
+    fi
+
+    # If there's no decimal point, add .0
+    if [[ ! "$REV" =~ \. ]]; then
+        REV="${REV}.0"
+    fi
+
+}
+
+
+function lazy_user() {
+
+    #  for the sake of laziness, let the user specify either the archive or the document when listing the revisions
+    if [ ${TARGET_EXTENSION} = '7z' ]; then
+	ARCHIVE=$TARGET
+    fi
+    }
+
+#########-    END FUNCTION DEFS   -########
+
+while getopts ":z:n:d:k:a:c:mlLE:e:ujUJX" options; do
   case "${options}" in                    
     n)                                    # If the option is n,
       NOTE="${OPTARG}"                      # set $NOTE to specified value.
@@ -469,8 +878,44 @@ while getopts ":z:n:d:k:a:c:l" options; do
 	  exit 1
       fi
       ;;
+    m)
+      M_FLAG_INVOKED=true
+      ;;
+    E)
+      E_UPPERCASE_FLAG_INVOKED=true
+      
+      REV="${OPTARG}"
+      
+      add_decimal_point_to_REV_if_there_isnt_one
+      ;;
+    e)
+      E_FLAG_INVOKED=true
+
+      REV="${OPTARG}"
+
+      add_decimal_point_to_REV_if_there_isnt_one
+      ;;
+    L)
+      L_UPPERCASE_FLAG_INVOKED=true
+      ;;
     l)
       L_FLAG_INVOKED=true
+      ;;
+    u)
+      U_FLAG_INVOKED=true
+      ;;
+    j)
+      J_FLAG_INVOKED=true
+      ;;
+
+    U)
+      U_UPPERCASE_FLAG_INVOKED=true
+      ;;
+    J)
+      J_UPPERCASE_FLAG_INVOKED=true
+      ;;
+    X)
+      X_UPPERCASE_FLAG_INVOKED=true
       ;;
     z)
       Z_FLAG_INVOKED=true
@@ -545,7 +990,7 @@ if [ ${K_FLAG_INVOKED} = true ]; then
 fi
 
 
-if [ ${L_FLAG_INVOKED} = true ]; then
+if [ ${L_UPPERCASE_FLAG_INVOKED} = true ]; then
     get_latest
 fi
 
@@ -556,26 +1001,79 @@ fi
 
 
 
- 
+if [ ${L_FLAG_INVOKED} = true ]; then
+    #  for the sake of laziness, let the user specify either the archive or the document when listing the revisions
+    if [ ${TARGET_EXTENSION} = '7z' ]; then
+	ARCHIVE=$TARGET
+    fi
+   7z -ba l "${ARCHIVE}" | awk '/[0-9]+\.[0-9]+/'
+   exit_normal
+fi
  
 
+if [ ${L_UPPERCASE_FLAG_INVOKED} = true ]; then
+    #  for the sake of laziness, let the user specify either the archive or the document when listing the revisions
+    if [ ${TARGET_EXTENSION} = '7z' ]; then
+	ARCHIVE=$TARGET
+    fi
+    get_latest
+fi
+
+
+if [ ${E_FLAG_INVOKED} = true ]; then
+    #  for the sake of laziness, let the user specify either the archive or the document when listing the revisions
+    if [ ${TARGET_EXTENSION} = '7z' ]; then
+	ARCHIVE=$TARGET
+    fi
+   print_rev_diff 
+fi
+ 
+
+if [ ${X_UPPERCASE_FLAG_INVOKED} = true ]; then
+    lazy_user
+    get_all
+    echo "7z-revisions archive ${ARCHIVE} extracted to ${TMPDIR_PER_DOC}" 
+    exit 0
+fi
+
+
+if [ ${E_UPPERCASE_FLAG_INVOKED} = true ]; then
+    lazy_user
+    get_all
+    extract_revision
+    exit 0
+fi
+
+if [ ${U_FLAG_INVOKED} = true ]; then
+    print_prev_rev_diff
+fi
+
+
+if [ ${J_FLAG_INVOKED} = true ]; then
+    print_next_rev_diff
+fi
+
+
+if [ ${M_FLAG_INVOKED} = true ]; then
+    print_missing_revs
+fi
+
+
+
+TIMESTAMP=`date +%Y-%m-%d_%H%M%S`
 # If the archive does not exist
 if [[ ! -f "${ARCHIVE}" ]]; then
   
     
     # Create the  signature file
     TARGET_HASH=$(md5sum ${TARGET} | awk '{print $1}')
-    TIMESTAMP=`date +%Y-%m-%d_%H%M%S`
     ORIGINAL_VERSION="${TARGET_SANS_EXTENSION}${TIMESTAMP}.${TARGET_EXTENSION}"
     HASH_FILE="${HASH_FILE_PRE}${ORIGINAL_VERSION}"
     NOTES_FILE="${NOTES_FILE_PRE}${ORIGINAL_VERSION}${NOTES_FILE_POST}"
     BUFFER_FILE_ENCODING_SYSTEM=`file -i "${TARGET_FILE}"`
     TARGET_HASH=`sha1sum "${TARGET_FILE}"|awk '{print $1}'`
-    if [ -z `dos2unix -ic "${TARGET_FILE}"` ]; then
-	END_OF_LINE_ENCODING=unix
-    else
-	END_OF_LINE_ENCODING=windows
-    fi
+    set_END_OF_LINE_ENCODING
+    
 
     cat > "${TMP_DIR}${SIGNATURE_FILE}" <<EOF
 ${TAGS_IN_METAFILE['rev']}-1.0
@@ -584,6 +1082,7 @@ ${TAGS_IN_METAFILE['document_name']}${TARGET}
 ${TAGS_IN_METAFILE['archive_created_datetime']}${TIMESTAMP}
 ${TAGS_IN_METAFILE['track_hashes']}t
 ${TAGS_IN_METAFILE['last_hash']}${TARGET_HASH}
+${TAGS_IN_METAFILE['latest_datetime']}${TIMESTAMP}
 ${TAGS_IN_METAFILE['directory_of_document']}${TARGET_PATH}
 ${TAGS_IN_METAFILE['os_type']}${OSTYPE}
 ${TAGS_IN_METAFILE['buffer_file_coding_system']}${BUFFER_FILE_ENCODING_SYSTEM}	
@@ -626,25 +1125,27 @@ else
     if [ -z `grep latest_revision= "${TMP_DIR}${SIGNATURE_FILE}"` ];  then
 	
 	# theres no latest_revision line!
-	LATEST_REVISION=`7z -ba l "${ARCHIVE}" | awk -F'.' 'BEGIN {max = 0} {if ($6+0 == $6 && $6>max) max=$6} END {print max}'`
+	LATEST_REVISION=`7z -ba l "${ARCHIVE}" | awk -F'.' '{print $5}' | awk  'BEGIN {max = 0} {if ($4+0 == $4 && $4>max) max=$4} END {print max}'`
 	
 	((LATEST_REVISION++))
+
+	LATEST_REVISION="${LATEST_REVISION}.0"
 	(echo "latest_revision=${LATEST_REVISION}";cat "${TMP_DIR}${SIGNATURE_FILE}")>"${TMP_DIR}tmpout"
 	cp "${TMP_DIR}tmpout" "${TMP_DIR}${SIGNATURE_FILE}"
     else
 	# just increment the line 
-	perl -pi -e 's/(latest_revision=)(-?\d+(\.\d+)?)/$1.($2+1)/eg' "${TMP_DIR}${SIGNATURE_FILE}"
-	
-	LATEST_REVISION=`grep 'latest_revision=' "${TMP_DIR}${SIGNATURE_FILE}" | awk -F'=' '{print $2}'` 
-	if [ ${LATEST_REVISION} = "0" ]; then
-	    LATEST_REVISION="1"
-            # the revision list index starts at 1 and not 0	
-	    perl -pi -e 's/(latest_revision=)(-?\d+(\.\d+)?)/$1.($2+1)/eg' "${TMP_DIR}${SIGNATURE_FILE}"
+
+	perl -pi -e "s/(${TAGS_IN_METAFILE['rev']})(-?\d+)(\.\d+)?/\"\$1\" .  (sprintf(\"%.1f\", \$2+1))/eg" "${TMP_DIR}${SIGNATURE_FILE}"
+
+
+	LATEST_REVISION=$(awk -v tag="${TAGS_IN_METAFILE['rev']}" '$0 ~ tag {sub(tag, "", $0); print $0}' "${TMP_DIR}${SIGNATURE_FILE}")
+	if [[ ${LATEST_REVISION} == "0.0" ]]; then
+	    LATEST_REVISION="1.0"
+            # the revisions start at 1.0 and not 0.0; 0.0 would be considered the unrevised original version	
+            #  so we must increment the rev tag again to 1.0
+	    perl -pi -e "s/(${TAGS_IN_METAFILE['rev']})-?(\d+)(\.\d+)?/\"\$1\" .  \"1.0\"/eg" "${TMP_DIR}${SIGNATURE_FILE}"
 	fi
     fi
-    LATEST_REVISION="${LATEST_REVISION}.0"
-    
-    
     original_version_tag=${TAGS_IN_METAFILE['original_version']}
     ORIGINAL_VERSION=$(awk -v pattern="${original_version_tag}" '$0 ~ pattern {sub(".*" pattern, ""); print $0}'  "${TMP_DIR}${SIGNATURE_FILE}") 
     if [ -z "${ORIGINAL_VERSION}" ]; then
@@ -660,10 +1161,55 @@ else
     NOTES_FILE="${NOTES_FILE_PRE}${ORIGINAL_VERSION}${NOTES_FILE_POST}"
     LATEST="7zr-latest-${ORIGINAL_VERSION}"
     
+
+    replace_tags_in_text
+
+    
     TARGET_HASH=`sha1sum "${TARGET_FILE}"|awk '{print $1}'`
-    sed -i  "s/${TAGS_IN_METAFILE['last_hash']}.*/${TAGS_IN_METAFILE['last_hash']}${TARGET_HASH}/g"  "${TMP_DIR}${SIGNATURE_FILE}"
+
+    if [ -z `grep ${TAGS_IN_METAFILE['last_hash']} "${TMP_DIR}${SIGNATURE_FILE}"` ];  then
+	
+    cat >> "${TMP_DIR}${SIGNATURE_FILE}" <<EOF
+${TAGS_IN_METAFILE['last_hash']}${TARGET_HASH}
+EOF
+    else
+	sed -i  "s/${TAGS_IN_METAFILE['last_hash']}.*/${TAGS_IN_METAFILE['last_hash']}${TARGET_HASH}/g"  "${TMP_DIR}${SIGNATURE_FILE}"
+    fi
+    
+    if [ -z `grep ${TAGS_IN_METAFILE['latest_datetime']} "${TMP_DIR}${SIGNATURE_FILE}"` ];  then
+
+    cat >> "${TMP_DIR}${SIGNATURE_FILE}" <<EOF
+${TAGS_IN_METAFILE['latest_datetime']}${TIMESTAMP}
+EOF
+    else
+	sed -i  "s/${TAGS_IN_METAFILE['latest_datetime']}.*/${TAGS_IN_METAFILE['latest_datetime']}${TIMESTAMP}/g"  "${TMP_DIR}${SIGNATURE_FILE}"
+    fi
+
+
+    if [ -z `grep ${TAGS_IN_METAFILE['os_type']} "${TMP_DIR}${SIGNATURE_FILE}"` ];  then
+
+    cat >> "${TMP_DIR}${SIGNATURE_FILE}" <<EOF
+${TAGS_IN_METAFILE['os_type']}${OSTYPE}
+EOF
+    fi
+
+    if [ -z `grep \"${TAGS_IN_METAFILE['buffer_file_coding_system']}\" "${TMP_DIR}${SIGNATURE_FILE}"` ];  then
+
+    BUFFER_FILE_ENCODING_SYSTEM=`file -i "${TARGET_FILE}"`
+    cat >> "${TMP_DIR}${SIGNATURE_FILE}" <<EOF
+${TAGS_IN_METAFILE['buffer_file_coding_system']}${BUFFER_FILE_ENCODING_SYSTEM}	
+EOF
+    fi
+
+    if [ -z `grep "${TAGS_IN_METAFILE['end_of_line_encoding']}" "${TMP_DIR}${SIGNATURE_FILE}"` ];  then
+    set_END_OF_LINE_ENCODING
+    cat >> "${TMP_DIR}${SIGNATURE_FILE}" <<EOF
+${TAGS_IN_METAFILE['end_of_line_encoding']}${END_OF_LINE_ENCODING}
+EOF
+    fi
+    
     7z e -bso0 -bsp0 -aoa -o"${TMP_DIR}"  "${ARCHIVE}" "${ORIGINAL_VERSION}" "${HASH_FILE}" "${NOTES_FILE}" "${LATEST}"
-   
+    
     # edit hashfile
     cat >> "${TMP_DIR}${HASH_FILE}" <<EOF
 (puthash "${LATEST_REVISION}" "${TARGET_HASH}" 7zr-hasht)
@@ -678,6 +1224,11 @@ EOF
     # Create the diff file
     diff -Na "${TMP_DIR}${LATEST}"  "${TARGET_FILE}" > "${TMP_DIR}${LATEST_REVISION}"
     cp "${TARGET_FILE}"   "${TMP_DIR}${LATEST}" 
+    if [ ! -s  "${TMP_DIR}${LATEST_REVISION}" ]; then
+	echo "File is unchanged!  No action has been performed."
+	exit_abnormal
+    fi
+
     echo "Updating archive ${ARCHIVE}"
     7z a -t7z -m0=lzma -mx=9 -mfb=64 -md=32m -ms=on -bso0 -bsp0  "${ARCHIVE}" "${TMP_DIR}${SIGNATURE_FILE}" "${TMP_DIR}${LATEST}" "${TMP_DIR}${NOTES_FILE}" "${TMP_DIR}${HASH_FILE}" "${TMP_DIR}${LATEST_REVISION}"
     
