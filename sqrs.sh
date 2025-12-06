@@ -581,7 +581,14 @@ reconstruct_revision_internal() {
         die "Incomplete diff chain: last applied=$last_rev_applied, requested=$rev for document_id=$doc_id"
     fi
 
-    mv "$tmp" "$outfile"
+    # Build complete — handle stdout specially
+    if [[ "$outfile" == "-" || "$outfile" == "/dev/stdout" ]]; then
+	cat "$tmp"
+	rm -f "$tmp"
+    else
+	mv "$tmp" "$outfile"
+    fi
+
 }
 
 reconstruct_revision_for_file() {
@@ -1073,8 +1080,10 @@ nav_clear_all_cmd() {
     echo "All navigation state files cleared."
 }
 
+
+
 extract_cmd() {
-    [[ $# -lt 2 || $# -gt 3 ]] && die "Usage: extract <file> <rev> [output-file]"
+    [[ $# -lt 2 || $# -gt 3 ]] && die "Usage: extract <file> <rev> [output-file|-]"
 
     local doc="$1"
     local rev="$2"
@@ -1093,6 +1102,12 @@ extract_cmd() {
         outfile="$doc_norm"
     fi
 
+    # Browse-style full-document view to terminal
+    if [[ "$outfile" == "-" ]]; then
+        colored_extract_stdout "$doc_norm" "$rev"
+        return
+    fi
+
     local outdir
     outdir=$(dirname "$outfile")
     if [[ ! -d "$outdir" ]]; then
@@ -1102,6 +1117,169 @@ extract_cmd() {
     reconstruct_revision_for_file "$doc_norm" "$rev" "$outfile"
     echo "Extracted rev $rev of '$doc_norm' to '$outfile'."
 }
+
+
+
+
+colored_extract_stdout() {
+    local doc="$1"
+    local rev="$2"
+
+    # If color is off, just dump plain reconstruction.
+    if ! color_enabled; then
+        reconstruct_revision_for_file "$doc" "$rev" /dev/stdout
+        return
+    fi
+
+    # Normalize and set DB context
+    local doc_norm
+    doc_norm=$(normpath "$doc")
+    set_db_for_doc "$doc_norm"
+
+    [[ -f "$DB_NAME" ]] || die "DB for '$doc_norm' not found (expected $DB_NAME)."
+
+    local doc_id
+    doc_id=$(get_document_id "$DOC_NORM")
+    [[ -n "$doc_id" ]] || die "Document '$DOC_NORM' not found in DB."
+
+    local highest
+    highest=$(get_highest_revision "$doc_id")
+    [[ -n "$highest" ]] || highest=0
+
+    local have_prev=0 have_next=0 prev_rev next_rev
+    if (( rev > 0 )); then
+        have_prev=1
+        prev_rev=$((rev - 1))
+    fi
+    if (( rev < highest )); then
+        have_next=1
+        next_rev=$((rev + 1))
+    fi
+
+    # If no neighbours at all, just print plain.
+    if (( have_prev == 0 && have_next == 0 )); then
+        reconstruct_revision_for_file "$doc_norm" "$rev" /dev/stdout
+        return
+    fi
+
+    local tmp_cur tmp_prev tmp_next tmp_green tmp_red_map
+    tmp_cur=$(mktemp) || die "Failed to create temporary file."
+
+    reconstruct_revision_for_file "$doc_norm" "$rev" "$tmp_cur"
+
+    # ------------------------------------------------------------------
+    # 1) GREEN view: rev vs rev-1  (new in this revision)
+    # ------------------------------------------------------------------
+    if (( have_prev == 1 )); then
+        tmp_prev=$(mktemp) || { rm -f "$tmp_cur"; die "Failed to create temporary file."; }
+        reconstruct_revision_for_file "$doc_norm" "$prev_rev" "$tmp_prev"
+
+        tmp_green=$(mktemp) || { rm -f "$tmp_cur" "$tmp_prev"; die "Failed to create temporary file."; }
+
+        # Use `if ! ...; then :; fi` so set -e + pipefail don’t kill us.
+        if ! diff -u "$tmp_prev" "$tmp_cur" | colorize_diff_stream \
+            | awk '
+                /^diff /  { next }
+                /^index / { next }
+                /^@@ /    { next }
+                /^--- /   { next }
+                /^\+\+\+ /{ next }
+                /^\\ No newline at end of file/ { next }
+
+                {
+                    first = substr($0,1,1)
+                    rest  = substr($0,2)
+                    if (first == " " || first == "+") {
+                        print rest
+                    }
+                    # "-" lines = from prev only → drop
+                }
+            ' > "$tmp_green"
+        then
+            :
+        fi
+    else
+        # No previous revision: green view is just the plain current revision
+        tmp_green="$tmp_cur"
+    fi
+
+    # ------------------------------------------------------------------
+    # 2) RED map: rev vs rev+1 (text that disappears in next revision)
+    # ------------------------------------------------------------------
+    if (( have_next == 1 )); then
+        tmp_next=$(mktemp) || {
+            [[ "$tmp_green" != "$tmp_cur" ]] && rm -f "$tmp_green"
+            rm -f "$tmp_cur" "$tmp_prev"
+            die "Failed to create temporary file."
+        }
+        reconstruct_revision_for_file "$doc_norm" "$next_rev" "$tmp_next"
+
+        tmp_red_map=$(mktemp) || {
+            [[ "$tmp_green" != "$tmp_cur" ]] && rm -f "$tmp_green"
+            rm -f "$tmp_cur" "$tmp_prev" "$tmp_next"
+            die "Failed to create temporary file."
+        }
+
+        if ! diff -u "$tmp_cur" "$tmp_next" | colorize_diff_stream \
+            | awk '
+                /^diff /  { next }
+                /^index / { next }
+                /^@@ /    { next }
+                /^--- /   { next }
+                /^\+\+\+ /{ next }
+                /^\\ No newline at end of file/ { next }
+
+                {
+                    first = substr($0,1,1)
+                    rest  = substr($0,2)
+                    if (first == "-") {
+                        # rest is the current-rev line, with red intraline from colorize_diff_stream
+                        plain = rest
+                        gsub(/\033\[[0-9;]*m/, "", plain)   # strip ANSI to get key
+                        printf "%s\t%s\n", plain, rest       # plain\tcolored-red
+                    }
+                    # "+" lines exist only in next → irrelevant for rev
+                }
+            ' > "$tmp_red_map"
+        then
+            :
+        fi
+    fi
+
+    # ------------------------------------------------------------------
+    # 3) Merge RED onto GREEN view and print
+    # ------------------------------------------------------------------
+    if (( have_next == 1 )); then
+        # First file: red map (plain -> colored-red)
+        # Second file: green view (plain or green-colored)
+        awk -F'\t' '
+            NR == FNR {
+                red[$1] = $2
+                next
+            }
+            {
+                orig = $0
+                key  = orig
+                gsub(/\033\[[0-9;]*m/, "", key)   # strip ANSI for lookup
+                if (key in red) {
+                    print red[key]       # to-be-deleted → red
+                } else {
+                    print orig           # else keep (possibly green) as-is
+                }
+            }
+        ' "$tmp_red_map" "$tmp_green"
+    else
+        # Last revision: only green vs previous
+        cat "$tmp_green"
+    fi
+
+    # Cleanup
+    [[ "${tmp_green:-}" != "$tmp_cur" ]] && rm -f "${tmp_green:-}"
+    rm -f "${tmp_cur:-}" "${tmp_prev:-}" "${tmp_next:-}" "${tmp_red_map:-}"
+}
+
+
+
 
 rollback_cmd() {
     [[ $# -eq 2 ]] || die "Usage: rollback <file> <rev>"
@@ -1539,7 +1717,7 @@ Commands (per-document DB: <file>.db):
       With text, sets/replaces the note for that revision.
       With '-', reads multiline note from stdin.
 
-  extract <file> <rev> [output-file]
+   extract <file> <rev> [output-file]
       Extract revision rev (0 = original) to output-file
       or overwrite <file> if omitted.
 
@@ -1644,3 +1822,4 @@ case "$cmd" in
     -h|--help|help) usage ;;
     *)              die "Unknown command: $cmd" ;;
 esac
+
